@@ -1,0 +1,39 @@
+"playfight"
+{
+	"base"		"base"
+	"title"		"Play Fight"
+	"maps"		"^pf_"
+	"menusystem"	"1"
+	"workshopid"	"2017752343"
+
+	"settings"
+	{
+		1
+		{
+			"name"		"pf_enableweapondrops"
+			"text"		"Enable Weapon Drops"
+			"help"		"Enables/disables weapons dropping during the match."
+			"type"		"CheckBox"
+			"default"	"1"
+		}
+
+		2
+		{
+			"name"		"pf_bestof"
+			"text"		"First to Amount of Wins"
+			"help"		"The amount of wins someone can have before they win"
+			"type"		"Numeric"
+			"default"	"5"
+		}
+
+		3
+		{
+			"name"		"pf_suddendeath"
+			"text"		"Sudden Death on Draw"
+			"help"		"Should sudden death happen when the timer ends and more then 1 person is still alive."
+			"type"		"CheckBox"
+			"default"	"1"
+		}
+	}
+
+}
