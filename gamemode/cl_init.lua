@@ -1,5 +1,6 @@
 include( "shared.lua" )
 include( "cl_scoreboard.lua" )
+include( "cl_spectate.lua" )
 
 --convienience function for screen scaling
 local function ScrS()
@@ -23,51 +24,9 @@ playfight_client_current_song_channel = nil
 
 playfight_client_song_volume = 0.5
 
-playfight_client_should_play_song = false
+playfight_client_song_muted = true
 
--- Song check box and volume slider GUI elements
-playfight_client_song_checkbox = vgui.Create("DCheckBoxLabel")
-
-playfight_client_song_checkbox:SetPos( ScrW() / 2, ScrH() - (20 * ScrS()))
-playfight_client_song_checkbox:SetText("Enable Music")
-playfight_client_song_checkbox:SetValue(playfight_client_should_play_song)
-playfight_client_song_checkbox:SizeToContents()
-
-function playfight_client_song_checkbox:OnChange( val )
-    print("checked")
-
-	playfight_client_should_play_song = val
-    if playfight_client_current_song_channel ~= nil then
-        if !val then
-            playfight_client_current_song_channel:SetVolume(0)
-        else
-            playfight_client_current_song_channel:SetVolume(playfight_client_song_volume)
-        end
-    end
-end
-
-playfight_client_song_slider = vgui.Create("DNumSlider")
-playfight_client_song_slider:SetPos( (ScrW() / 2) - (300 * ScrS()), ScrH() - (20 * ScrS()))
-playfight_client_song_slider:SetSize(300 * ScrS(), 20 * ScrS())
-playfight_client_song_slider:SetText("Music Volume")
-playfight_client_song_slider:SetMin(0)
-playfight_client_song_slider:SetMax(1)
-playfight_client_song_slider:SetDecimals( 2 )
-
-function playfight_client_song_slider:OnValueChanged( val )
-    playfight_client_song_volume = val
-
-    
-
-    if playfight_client_current_song_channel ~= nil then
-        if playfight_client_should_play_song then
-            playfight_client_current_song_channel:SetVolume(playfight_client_song_volume)
-            print(playfight_client_current_song_channel:GetVolume())
-        else
-            playfight_client_current_song_channel:SetVolume(0)
-        end
-    end
-end
+playfight_client_ismenu = true
 
 
 
@@ -89,7 +48,6 @@ LocalPlayer().playfight_client_super_flash_dir = 0
 
 local currentSuperLerp = 0
 local currentHealthLerp = 0
-
 
 surface.CreateFont( "PlayfightState", {
 	font = "Tahoma", -- Use the font-name which is shown to you by your operating system Font Viewer, not the file name
@@ -148,32 +106,72 @@ surface.CreateFont( "ScoreboardStatsPlayfight", {
 playfight_client_stunposx = 0
 playfight_client_stunstring = ""
 
-//local html = vgui.Create( "DHTML" )
-//html:Dock( FILL )
-//html:SetAllowLua(true)
-//html:OpenURL("asset://garrysmod/html/test.html")
+local html = vgui.Create( "DHTML" )
+html:Dock( FILL )
+html:SetAllowLua(true)
+html:OpenURL("http://quintonswenski.com/Jamdoggie/index.html")
 
-//html:AddFunction("playfight", "playgame", function()
-//    net.Start("playfight_player_start_play")
-//    net.SendToServer()
-//
-//    playfight_client_song_checkbox:Hide()
-//    playfight_client_song_slider:Hide()
-//
-//    gui.EnableScreenClicker(false)
-//    frame:Remove()
-//    html:Remove()
-//end)
+html:AddFunction("playfight", "playgame", function()
+    net.Start("playfight_player_start_play")
+    net.SendToServer()
+
+    gui.EnableScreenClicker(false)
+
+    playfight_client_ismenu = false
+
+    playfight_playerframe:SetVisible(false)
+    playfight_playerchoose:SetVisible(false)
+    html:SetVisible(false)
+    html:OpenURL("http://quintonswenski.com/Jamdoggie/settingsmenu/index.html")
+end)
+
+html:AddFunction("playfight", "spectategame", function()
+    net.Start("playfight_player_start_spectate")
+    net.SendToServer()
+
+    gui.EnableScreenClicker(false)
+
+    playfight_client_ismenu = false
+
+    playfight_playerframe:SetVisible(false)
+    playfight_playerchoose:SetVisible(false)
+    html:SetVisible(false)
+    html:OpenURL("http://quintonswenski.com/Jamdoggie/settingsmenu/index.html")
+end)
+
+html:AddFunction("playfight", "setmusicmuted", function(muted)
+    if muted == true or muted == false then
+        playfight_client_song_muted = muted
+
+        if playfight_client_current_song_channel ~= nil then
+            if muted then 
+                playfight_client_current_song_channel:SetVolume(0)
+            else
+                playfight_client_current_song_channel:SetVolume(playfight_client_song_volume)
+            end
+        end
+    end
+end)
+
+html:AddFunction("playfight", "getmusicmuted", function()
+    return playfight_client_song_muted
+end)
+
+html:AddFunction("playfight", "setmusicvolume", function(volume)
+    if type(volume) == "number" then
+        playfight_client_song_volume = volume
+
+        if playfight_client_current_song_channel ~= nil then
+            playfight_client_current_song_channel:SetVolume(playfight_client_song_volume)
+        end
+    end
+end)
+
+function html:Paint()
+    draw.RoundedBox(0, 0, 0, ScrW(), ScrH(), Color(0, 0, 0, 122))
+end
 
 --main menu
-local frame = vgui.Create("DFrame")
-frame:SetSize((ScrW() / 2), (ScrH() / 7))
-frame:SetPos((ScrW() / 8), (ScrH() / 15))
-frame:SetVisible( true )
-
-frame:ShowCloseButton(false)
-frame:SetDraggable(false)
-frame:SetTitle("")
 
 util.PrecacheModel("models/weapons/ricochet/c_ricochet_disc.mdl")
 util.PrecacheModel("models/weapons/ricochet/w_ricochet_disc.mdl")
@@ -184,92 +182,59 @@ util.PrecacheModel("models/weapons/w_crowbar.mdl")
 util.PrecacheModel("models/weapons/c_crossbow.mdl")
 util.PrecacheModel("models/weapons/w_crossbow.mdl")
 
-frame.Paint = function(s, w, h)
-
-    gui.EnableScreenClicker(true)
-
-    if ( FrameTime() ~= 0 ) then
-       
-        Derma_DrawBackgroundBlur(frame, 0)
-        draw.RoundedBox(0, 0, 0, w, h, Color(66, 66, 66, 170))
-
-    end
-
-end
-
-
---drag panel
-local dragframe = vgui.Create("DFrame")
-dragframe:SetSize((ScrW() / 2), ScrH() / 1.4)
-dragframe:SetPos((ScrW() / 8), (ScrH() / 4.5))
-dragframe:SetVisible( true )
-
-dragframe:ShowCloseButton(false)
-dragframe:SetDraggable(true)
-dragframe:SetTitle("")
-
-dragframe.Paint = function(s, w, h)
-
-    --leave blank. we don't want to draw this panel
-
-end
-
-DragW,DragH = dragframe:GetSize()
 
 --main menu
-local playerframe = vgui.Create("DFrame", dragframe)
-playerframe:SetSize(DragW/2, DragH)
+playfight_playerframe = vgui.Create("DFrame")
 
-playerframe:SetVisible( true )
+playfight_playerframe:SetVisible( true )
 
-playerframe:ShowCloseButton(false)
-playerframe:SetDraggable(false)
-playerframe:SetTitle("")
+playfight_playerframe:SetPos(ScrW() / 2, ScrH() / 15)
+
+playfight_playerframe:SetWidth(ScrW() / 3)
+playfight_playerframe:SetHeight(ScrH() / 1.3)
+
+playfight_playerframe:ShowCloseButton(false)
+playfight_playerframe:SetDraggable(false)
+playfight_playerframe:SetTitle("")
 
 local dragx = 0
 local dragy = 0
 
-playerframe:SetPos(0, 0)
+playfight_playerframe:SetPos(0, 0)
 
-local pfpx,pfpy = playerframe:GetPos()
-local pfx,pfy = playerframe:GetSize()
+local pfpx,pfpy = playfight_playerframe:GetPos()
+local pfx,pfy = playfight_playerframe:GetSize()
 
-playerframe.Paint = function(s, w, h)
+playfight_playerframe.Paint = function(s, w, h)
+
+    gui.EnableScreenClicker(true)
+
+    if ( FrameTime() ~= 0 ) then
+    end
+
+end
+
+playfight_playerchoose = vgui.Create("DPanelSelect")
+
+playfight_playerchoose:SetVisible( true )
+
+playfight_playerchoose:SetPos(ScrW() / 4, ScrH() / 15)
+
+playfight_playerchoose:SetWidth(ScrW() / 1.4)
+playfight_playerchoose:SetHeight(ScrH() / 1.3)
+
+playfight_playerchoose.Paint = function(s, w, h)
 
     gui.EnableScreenClicker(true)
 
     if ( FrameTime() ~= 0 ) then
 
-        draw.RoundedBox(0, 0, 0, w, h, Color(66, 66, 66, 170))
-
     end
 
 end
 
-local playerchoose = vgui.Create("DPanelSelect", dragframe)
-
-playerchoose:SetSize(DragW/2, DragH)
-playerchoose:SetPos(DragW/2, 0)
-playerchoose:SetVisible( true )
-
-playerchoose.Paint = function(s, w, h)
-
-    gui.EnableScreenClicker(true)
-
-    if ( FrameTime() ~= 0 ) then
-
-        draw.RoundedBox(0, 0, 0, w, h, Color(66, 66, 66, 170))
-
-    end
-
-end
-
-
-
-local mdl = playerframe:Add("DModelPanel")
+local mdl = playfight_playerframe:Add("DModelPanel")
 mdl:SetPos(0,0)
-
-px,py = playerframe:GetSize()
 
 mdl:Dock(FILL)
 
@@ -284,16 +249,29 @@ mdl.Angles = Angle( 0, 0, 0 )
 mdl:SetLookAt( Vector( -100, 0, -22 ) )
 mdl.Entity:SetPos( Vector( -100, 0, -61 ) )
 
---for setting the playermodel
+-- For setting the playermodel
 local function SetPlayerModel(model)
-
     net.Start("playfight_change_playermodel")
     net.WriteString(model)
     net.SendToServer()
-
 end
 
---add the select boxes for other player models
+-- Update playermodel based off of previously selected one
+if GetConVar( "cl_playermodel" ):GetString() ~= nil then
+    timer.Simple( 0.1, function()
+        local currentmodel = GetConVar( "cl_playermodel" ):GetString()
+        local currentmodelname = player_manager.TranslatePlayerModel( currentmodel )
+
+        util.PrecacheModel(currentmodelname)
+        mdl.Entity:SetModel( currentmodelname )
+        SetPlayerModel( currentmodelname )
+
+        local iSeq = mdl.Entity:LookupSequence( "idle_all_01" )
+        if ( iSeq > 0 ) then mdl.Entity:ResetSequence(iSeq) end
+    end)
+end
+
+-- Add the select boxes for other player models
 for name, model in SortedPairs( player_manager.AllValidModels() ) do
 
     local icon = vgui.Create( "SpawnIcon" )
@@ -302,18 +280,15 @@ for name, model in SortedPairs( player_manager.AllValidModels() ) do
     icon:SetTooltip( name )
     icon.playermodel = name
 
-    playerchoose:AddPanel( icon, { cl_playermodel = name } )
+    playfight_playerchoose:AddPanel( icon, { cl_playermodel = name } )
 
 end
-
-dragframe:MoveToFront()
 
 function mdl:LayoutEntity( ent )
     
 end
 
-function playerchoose:OnActivePanelChanged( old, new )
-
+function playfight_playerchoose:OnActivePanelChanged( old, new )
     timer.Simple( 0.1, function() 
         local model = LocalPlayer():GetInfo( "cl_playermodel" )
         local modelname = player_manager.TranslatePlayerModel( model )
@@ -329,45 +304,12 @@ function playerchoose:OnActivePanelChanged( old, new )
 
 end
 
-local xtwo, ytwo = frame:GetSize()
 
-dragframe:MoveToFront()
 
---play button
-local playButton = vgui.Create("DButton", frame)
-
-playButton:SetText("Play")
-
-xt, yt = playButton:GetSize()
-
-playButton:SetPos(xtwo/2 - (xt / 2), ytwo/2 - (ytwo/8))
-
-playButton.DoClick = function()
-
-    net.Start("playfight_player_start_play")
-    net.SendToServer()
-
-    playfight_client_song_checkbox:Hide()
-    playfight_client_song_slider:Hide()
-
-    playButton:Remove()
-    gui.EnableScreenClicker(false)
-    frame:Remove()
-    playerframe:SetVisible(false)
-    playerchoose:SetVisible(false)
-
-end
-
---Play sound when people get hurt
+-- Play sound when people get hurt
 net.Receive("playfight_hurtsound", function() 
     surface.PlaySound("physics/cardboard/cardboard_box_break2.wav")
 end)
-
-function dragframe:Think()
-    dragframe:MoveToFront()
-end
-
-dragframe:MoveToFront()
 
 hook.Add( "HUDShouldDraw", "__DraRaW_huUD_playfIght1___OONE__", function( name )
 
@@ -471,7 +413,7 @@ hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
         surface.SetFont("PlayfightState")
         local graceWidth, graceHeight = surface.GetTextSize(graceText)
 
-        draw.SimpleTextOutlined(graceText, "PlayfightState", (ScrW() / 2) - (graceWidth / 2), ScrH() / 15, Color( 255, 255, 255, 255 ), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1 * ScrS(), Color( 0, 0, 0, 255 ))
+        draw.SimpleTextOutlined(graceText, "PlayfightState", (ScrW() / 2) - (graceWidth / 2), ScrH() / 2 - graceHeight, Color( 255, 255, 255, 255 ), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1 * ScrS(), Color( 0, 0, 0, 255 ))
     end
 
     surface.SetFont("DermaLargeScaled")
@@ -483,94 +425,95 @@ hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
     local dispWidth = math.Round(80 * ScrS())
     local dispHeight = math.Round(42 * ScrS())
 
-    draw.RoundedBox(0, padding, ScrH() - dispHeight - padding, dispWidth, dispHeight, Color(66, 66, 66, 215))
+    if (!playfight_client_ismenu) then
+        draw.RoundedBox(0, padding, ScrH() - dispHeight - padding, dispWidth, dispHeight, Color(66, 66, 66, 215))
+    
+        local healthWidth = math.Round(80 * ScrS())
+        local healthHeight = math.Round(19 * ScrS())
+
+        draw.RoundedBox(0, padding, ScrH() - padding - healthHeight - dispHeight, healthWidth, healthHeight, Color(86, 86, 86, 215))
+
+        local plyHealth = LocalPlayer():Health()
+
+        if plyHealth < 0 then
+            plyHealth = 0
+        end
+
+        local healWidth, healHeight = surface.GetTextSize(plyHealth)
+        local textPadding = 3
+
+        draw.DrawText(plyHealth, "DermaLargeScaled", padding + (dispWidth/2 - healWidth/2), ScrH() - padding - (dispHeight/2 + healHeight/2), Color(255,255,255))
 
 
-    local healthWidth = math.Round(80 * ScrS())
-    local healthHeight = math.Round(19 * ScrS())
+        surface.SetFont("PlayfightState")
 
-    draw.RoundedBox(0, padding, ScrH() - padding - healthHeight - dispHeight, healthWidth, healthHeight, Color(86, 86, 86, 215))
+        local labelW, labelH = surface.GetTextSize("Health/Super")
 
-    local plyHealth = LocalPlayer():Health()
+        draw.DrawText("Health/Super", "PlayfightState", padding + (healthWidth/2 - labelW/2), ScrH() - padding - dispHeight - (healthHeight/2 + labelH/2), Color(255,255,255))
 
-    if plyHealth < 0 then
-        plyHealth = 0
-    end
+        --health bar
+        local barWidth = math.Round(7 * ScrS())
+        local barHeight = (dispHeight + healthHeight)
 
-    local healWidth, healHeight = surface.GetTextSize(plyHealth)
-    local textPadding = 3
+        currentHealthLerp = Lerp(0.1 * (FrameTime() * 200), currentHealthLerp, ply:Health())
+        local lerpHealth = currentHealthLerp
 
-    draw.DrawText(plyHealth, "DermaLargeScaled", padding + (dispWidth/2 - healWidth/2), ScrH() - padding - (dispHeight/2 + healHeight/2), Color(255,255,255))
+        draw.RoundedBox(0, padding + dispWidth, ScrH() - padding - barHeight, barWidth, barHeight, Color(46, 46, 46, 215))
 
-
-    surface.SetFont("PlayfightState")
-
-    local labelW, labelH = surface.GetTextSize("Health/Super")
-
-    draw.DrawText("Health/Super", "PlayfightState", padding + (healthWidth/2 - labelW/2), ScrH() - padding - dispHeight - (healthHeight/2 + labelH/2), Color(255,255,255))
-
-    --health bar
-    local barWidth = math.Round(7 * ScrS())
-    local barHeight = (dispHeight + healthHeight)
-
-    currentHealthLerp = Lerp(0.1 * (FrameTime() * 200), currentHealthLerp, ply:Health())
-    local lerpHealth = currentHealthLerp
-
-    draw.RoundedBox(0, padding + dispWidth, ScrH() - padding - barHeight, barWidth, barHeight, Color(46, 46, 46, 215))
-
-    draw.RoundedBox(0, padding + dispWidth, ScrH() - padding - barHeight + (barHeight - barHeight * (lerpHealth/ply:GetMaxHealth())), barWidth, barHeight * (lerpHealth/ply:GetMaxHealth()), Color(30, 200, 100))
+        draw.RoundedBox(0, padding + dispWidth, ScrH() - padding - barHeight + (barHeight - barHeight * (lerpHealth/ply:GetMaxHealth())), barWidth, barHeight * (lerpHealth/ply:GetMaxHealth()), Color(30, 200, 100))
 
 
-    -- UPDATE SUPER COLOR
+        -- UPDATE SUPER COLOR
 
-    for k,v in next, player.GetAll() do
-        if v.playfight_client_super_charge then
-            if v.playfight_client_super_flash_dir == 0 then
-                v.playfight_client_super_flash = v.playfight_client_super_flash + 5 * (FrameTime() * 200)
+        for k,v in next, player.GetAll() do
+            if v.playfight_client_super_charge then
+                if v.playfight_client_super_flash_dir == 0 then
+                    v.playfight_client_super_flash = v.playfight_client_super_flash + 5 * (FrameTime() * 200)
 
-                if v.playfight_client_super_flash > 255 then
-                    v.playfight_client_super_flash_dir = 1
+                    if v.playfight_client_super_flash > 255 then
+                        v.playfight_client_super_flash_dir = 1
+                    end
+                else
+                    v.playfight_client_super_flash = v.playfight_client_super_flash - 5 * (FrameTime() * 200)
+
+                    if v.playfight_client_super_flash < 50 then
+                        v.playfight_client_super_flash_dir = 0
+                    end
                 end
             else
-                v.playfight_client_super_flash = v.playfight_client_super_flash - 5 * (FrameTime() * 200)
-
-                if v.playfight_client_super_flash < 50 then
-                    v.playfight_client_super_flash_dir = 0
-                end
+                v.playfight_client_super_flash = 255
             end
-        else
-            v.playfight_client_super_flash = 255
         end
-    end
-    -- DRAW SUPER BAR
+        -- DRAW SUPER BAR
 
-    currentSuperLerp = Lerp(0.05 * (FrameTime() * 200), currentSuperLerp, GetGlobalInt("__playGgfiHti_SUPErCLient_"..LocalPlayer():Nick()))
-    super = currentSuperLerp
+        currentSuperLerp = Lerp(0.05 * (FrameTime() * 200), currentSuperLerp, GetGlobalInt("__playGgfiHti_SUPErCLient_"..LocalPlayer():Nick()))
+        super = currentSuperLerp
 
-    draw.RoundedBox(0, padding + dispWidth + barWidth, ScrH() - padding - barHeight, barWidth, barHeight, Color(46, 46, 46, 215))
-   
-    draw.RoundedBox(0, padding + dispWidth + barWidth, ScrH() - padding - barHeight + (barHeight - barHeight * (super/100)), barWidth, barHeight * (super/100), Color(157, 80, 80, LocalPlayer().playfight_client_super_flash))
-
-
-    surface.SetFont("DermaLargeScaled")
-    local tw, th = surface.GetTextSize(winStr)
-
-    if winStr ~= "" then
-        winx = Lerp(0.1 * ScrS() * (FrameTime() * 200), winx, ScrW()/2 - tw/2)
-        panelx = Lerp(0.1 * ScrS() * (FrameTime() * 200), panelx, 0)
-    else
-        winx = ScrW()
-        panelx = ScrW()
-    end
+        draw.RoundedBox(0, padding + dispWidth + barWidth, ScrH() - padding - barHeight, barWidth, barHeight, Color(46, 46, 46, 215))
     
-    local panelheightyy = ScrH()/5
+        draw.RoundedBox(0, padding + dispWidth + barWidth, ScrH() - padding - barHeight + (barHeight - barHeight * (super/100)), barWidth, barHeight * (super/100), Color(157, 80, 80, LocalPlayer().playfight_client_super_flash))
 
-    if !playfight_scoreboard_visible then
-        draw.RoundedBox(0, panelx, ScrH()/2-(panelheightyy/2), ScrW(), panelheightyy, Color(70,70,70,230))
 
-        draw.DrawText(winStr, "DermaLargeScaled", winx , ScrH()/2 - th/2, Color(200,200,200))
+        surface.SetFont("DermaLargeScaled")
+        local tw, th = surface.GetTextSize(winStr)
+
+        if winStr ~= "" then
+            winx = Lerp(0.1 * ScrS() * (FrameTime() * 200), winx, ScrW()/2 - tw/2)
+            panelx = Lerp(0.1 * ScrS() * (FrameTime() * 200), panelx, 0)
+        else
+            winx = ScrW()
+            panelx = ScrW()
+        end
+        
+        local panelheightyy = ScrH()/5
+
+        if !playfight_scoreboard_visible then
+            draw.RoundedBox(0, panelx, ScrH()/2-(panelheightyy/2), ScrW(), panelheightyy, Color(70,70,70,230))
+
+            draw.DrawText(winStr, "DermaLargeScaled", winx , ScrH()/2 - th/2, Color(200,200,200))
+        end
+
     end
-    dragframe:MoveToFront()
 
     -- Stun timer
     if playfight_client_stunstring ~= "" then
@@ -588,16 +531,22 @@ hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
 end)
 
 function GM:PlayerBindPress( ply, bind, pressed )
-    if !playerframe:IsVisible() then
+    if !playfight_playerframe:IsVisible() then
         if bind == "+menu_context" then
-            playerframe:SetVisible(true)
-            playerchoose:SetVisible(true)
+            playfight_playerframe:SetVisible(true)
+            playfight_playerchoose:SetVisible(true)
+
+            html:SetVisible(true)
+
             gui.EnableScreenClicker(true)
         end
     else
         if bind == "+menu_context" then
-            playerframe:SetVisible(false)
-            playerchoose:SetVisible(false)
+            playfight_playerframe:SetVisible(false)
+            playfight_playerchoose:SetVisible(false)
+
+            html:SetVisible(false)
+
             gui.EnableScreenClicker(false)
         end
     end
@@ -931,7 +880,7 @@ net.Receive("playfight_client_play_music", function(len)
                 
                 playfight_client_current_song_channel = station
 
-                if playfight_client_should_play_song then
+                if !playfight_client_song_muted then
                     station:SetVolume(playfight_client_song_volume)
                 else
                     station:SetVolume(0)
@@ -944,9 +893,12 @@ net.Receive("playfight_client_play_music", function(len)
 end)
 
 
+net.Receive("playfight_client_killfeed", function( len )
+    local attacker = net.ReadString()
+    local attackerTeam = net.ReadFloat()
+    local inflictor = net.ReadString()
+    local victim = net.ReadString()
+    local victimTeam = net.ReadFloat()
 
--- Music
-hook.Add("Initialize", "playfight_client_player_connect_music", function( ply )
-    
+    GAMEMODE:AddDeathNotice(attacker, attackerTeam, inflictor, victim, victimTeam)
 end)
-

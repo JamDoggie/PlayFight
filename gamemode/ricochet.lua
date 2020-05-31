@@ -1,4 +1,4 @@
-playfight_ricochet_disks = {}
+playfight_ricochet_disks = playfight_ricochet_disks or {}
 
 hook.Add("Tick", "__playfight_disk_velocity__", function()
     for k,v in next, playfight_ricochet_disks do
@@ -6,7 +6,9 @@ hook.Add("Tick", "__playfight_disk_velocity__", function()
         if v ~= nil and v ~= NULL and v:GetPhysicsObject() ~= nil and v:GetPhysicsObject() ~= NULL and v:GetPhysicsObject():IsValid() and v.directionVector ~= nil then
             v:SetLagCompensated(true)
 
-            v:GetPhysicsObject():SetVelocity(Vector(v.directionVector.x * 800, v.directionVector.y * 800, 10))
+            local normalizedVector = v.directionVector:GetNormalized()
+
+            v:GetPhysicsObject():SetVelocity(Vector(normalizedVector.x * 1200, normalizedVector.y * 1200, 10))
 
             //v:SetPos(Vector(v:GetPos().x, v:GetPos().y, v.posZ))
 

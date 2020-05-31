@@ -1,6 +1,7 @@
 AddCSLuaFile( "cl_init.lua" )
 AddCSLuaFile( "cl_scoreboard.lua" )
 AddCSLuaFile( "shared.lua" )
+AddCSLuaFile( "cl_spectate.lua" )
 
 include( "shared.lua" )
 include( "network_server.lua" )
@@ -15,6 +16,11 @@ playfight_currentRound = 0
 playfight_mapsinstalled = playfight_mapsinstalled or {}
 playfight_mapvotes = playfight_mapvotes or {}
 playfight_playersvoted = playfight_playersvoted or {}
+
+playfight_players_spectating = playfight_players_spectating or {}
+
+playfight_game_ended = playfight_game_ended or false
+
 
 local ragdollCooldown = 0.3
 
@@ -42,7 +48,53 @@ local function SetSuper( ply, num )
 
 end
 
+function playfight_increase_kills(ply)
+    if GetGlobalBool("__ident1fier____Warmup_playfight__") == false then
+        if playfight_kills_list[ply] == nil then
+            playfight_kills_list[ply] = 1
+        else
+            playfight_kills_list[ply] = playfight_kills_list[ply] + 1
+        end
 
+        -- Send to clients
+        net.Start("playfight_send_kills")
+        
+        local killsLength = 0
+
+        for k, v in pairs(playfight_kills_list) do
+            killsLength = killsLength + 1
+        end
+
+        net.WriteInt(killsLength, 15)
+
+
+        for k, v in pairs(playfight_kills_list) do
+            print(k)
+            print(v)
+            if k:SteamID() ~= nil and v ~= nil then
+                net.WriteString(k:SteamID())
+                net.WriteInt(v, 32)
+            else
+                net.WriteString("")
+                net.WriteInt(0, 32)
+            end
+        end
+
+        net.Broadcast()
+    end
+end
+
+function playfight_send_killfeed(attacker, attackerTeam, inflictor, victim, victimTeam)
+    net.Start("playfight_client_killfeed")
+
+    net.WriteString(attacker)
+    net.WriteFloat(attackerTeam)
+    net.WriteString(inflictor)
+    net.WriteString(victim)
+    net.WriteFloat(victimTeam)
+
+    net.Broadcast()
+end
 
 function PlayfightSendTabInfo( ply )
     net.Start("playfight_get_winloss")
@@ -67,7 +119,7 @@ end
 
 --=RAGDOLLING AND STUFF=--
 hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
-    if ( key == IN_ATTACK and ply:GetActiveWeapon() == NULL and !table.HasValue(playfight_server_menu_info, v) and ply.spectating == nil and ply.playtimer ~= nil) then
+    if ( key == IN_ATTACK and ply:GetActiveWeapon() == NULL and !table.HasValue(playfight_server_menu_info, v) and ply.spectating == nil and ply.playtimer ~= nil and !table.HasValue(playfight_players_spectating, v)) then
         if !(ply.fell) then
             ply.fell = 0
         end
@@ -121,19 +173,19 @@ hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
                             if hit:IsPlayer() then
                                 hit:TakeDamage(damageToTake, ply, ragdoll)
                                 hit:DropWeapon()
-                            elseif hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit ~= ragdoll then
+                            elseif hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit ~= ragdoll && !playfight_is_grace_period then
                                 hit.ownply:TakeDamage(damageToTake, ply, ragdoll)
                                 hit.ownply.healthBefore = hit.ownply.healthBefore - damageToTake
                                 
                                 if hit.ownply.healthBefore <= 0 then
-
                                     hit.ownply.healthBefore = 100
 
                                     hit.ownply:SetPos(ply.ragfall:GetPos())
 
-                                    hit.ownply:Kill()
-                                    
-                                    hit.ownply:GetRagdollEntity():Remove()
+                                    hit.ownply:KillSilent()
+
+                                    playfight_send_killfeed(ply:GetName(), ply:Team(), "ragdoll", hit.ownply:GetName(), hit.ownply:Team())
+                                    playfight_increase_kills(ply)
 
                                     hit.ownply.fell = 0
                                 end
@@ -272,6 +324,30 @@ end)
 
 hook.Add("Tick", "xdxddd__plAYer__clickKKPlay_dEdeaHooK", function() 
 
+    -- Send ragdoll information to clients for proper name tag displaying.
+    for k, ply in next, player.GetAll() do
+        if ply ~= nil and ply:IsValid() and ply:Alive() then
+            if ply.ragfall ~= nil then
+                net.Start("playfight_client_ragdoll")
+                net.WriteString(ply:Nick())
+                net.WriteBool(true)
+                net.WriteFloat(ply.ragfall:GetPos().X)
+                net.WriteFloat(ply.ragfall:GetPos().Y)
+                net.WriteFloat(ply.ragfall:GetPos().Z)
+                net.Broadcast()
+            else
+                net.Start("playfight_client_ragdoll")
+                net.WriteString(ply:Nick())
+                net.WriteBool(false)
+                net.WriteFloat(0)
+                net.WriteFloat(0)
+                net.WriteFloat(0)
+                net.Broadcast()
+            end
+        end
+    end
+
+    -- Strip weapons from player if they have an empty or invalid weapon, and set their ammo capacity for specific guns(1 bullet for 357, 2 for shotgun)
     for k, v in next, player.GetAll() do
 
         if ( v:GetActiveWeapon() ~= NULL and v:GetActiveWeapon():Clip1() <= 0 and v:GetActiveWeapon():GetHoldType() ~= "physgun") then
@@ -301,26 +377,10 @@ hook.Add("Tick", "xdxddd__plAYer__clickKKPlay_dEdeaHooK", function()
 
         
     end
-    
-    -- Send ragdoll information to clients for proper name tag displaying.
-    for k, ply in next, player.GetAll() do
-        if ply.ragfall ~= nil then
-            net.Start("playfight_client_ragdoll")
-            net.WriteString(ply:Nick())
-            net.WriteBool(true)
-            net.WriteFloat(ply.ragfall:GetPos().X)
-            net.WriteFloat(ply.ragfall:GetPos().Y)
-            net.WriteFloat(ply.ragfall:GetPos().Z)
-            net.Broadcast()
-        else
-            net.Start("playfight_client_ragdoll")
-            net.WriteString(ply:Nick())
-            net.WriteBool(false)
-            net.WriteFloat(0)
-            net.WriteFloat(0)
-            net.WriteFloat(0)
-            net.Broadcast()
-        end
+
+    -- Check if it's not warmup, and there's 1 or less people connected to the server. If so, end the game(assuming pf_drawonsolo is set to true)
+    if !playfight_game_ended and #player.GetAll() <= 1 and GetGlobalBool("__ident1fier____Warmup_playfight__") == false and GetConVar("pf_drawonsolo"):GetBool() == true then
+        playfight_end_game()
     end
 
 end)
@@ -533,7 +593,7 @@ end
 
 -- If super is charged, make player get flung at full force.
 function GM:KeyRelease(ply, key)
-    if key == IN_ATTACK2 and ply.superenergy ~= nil and ply.fell == 0 and ply.lastpresswep == false then 
+    if key == IN_ATTACK2 and ply.superenergy ~= nil and ply.fell == 0 and ply.lastpresswep == false and !table.HasValue(playfight_players_spectating, v) then 
 
         net.Start("playfight_client_supercharging")
         net.WriteBool(false)
@@ -595,7 +655,7 @@ function GM:KeyRelease(ply, key)
                                 hit:DropWeapon()
 
                                 table.insert(ragdoll.hitEntities, hit)
-                            elseif hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit ~= ragdoll then
+                            elseif hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit ~= ragdoll && !playfight_is_grace_period then
                                 hit.ownply:TakeDamage(damageToTake, ply, ragdoll)
                                 hit.ownply.healthBefore = hit.ownply.healthBefore - damageToTake
                                 
@@ -698,6 +758,9 @@ end )
 hook.Add("PlayerInitialSpawn", "xddd___Xd_playerspawn_setragfall_nil_playf_gight_addon", function( ply )
     ply.ragfall = nil
 
+    -- 0 = Free Roam, 1 = Spectate players in firstperson, 2 = Spectate players in thirdperson
+    ply.spectateMode = 0 
+
     ply:SetModel("models/player/kleiner.mdl")
     ply:SetMaxSpeed(1150)
 
@@ -711,10 +774,12 @@ hook.Add("PlayerInitialSpawn", "xddd___Xd_playerspawn_setragfall_nil_playf_gight
         net.Start("playfight_client_play_music")
         net.Send(ply)
     end
+
+    -- This variable determines if the player selected the "spectate" option on the main menu, NOT if they are currently spectating after, say, they lost a round.
+    ply.spectatingGame = false
 end)
 
 hook.Add("PlayerSpawn", "xddd_I_N_I_T_I_A_L_Xd_playerspawn_setragfall_nil_playf_gight_addon", function( ply )
-
     ply:SetMaxSpeed(1150)
 
     if ply.ragfall ~= nil then
@@ -727,7 +792,7 @@ hook.Add("PlayerSpawn", "xddd_I_N_I_T_I_A_L_Xd_playerspawn_setragfall_nil_playf_
         
         for i = 1, numberOfBones - 1 do 
             if !freebone then
-                local ragBone = ply.ragfall:GetPhysicsObjectNum( i )	--Get the current bone
+                local ragBone = ply.ragfall:GetPhysicsObjectNum( i )	-- Get the current bone
             
                 if IsValid( ragBone ) then
             
@@ -775,12 +840,221 @@ end)
 
 -- Respawning
 hook.Add("PlayerDeathThink", "__PLayF1Ght_playDeADTTHthINK__", function( ply )
-    if !GetGlobalBool("__ident1fier____Warmup_playfight__") then 
-        if (ply:GetObserverMode() == OBS_MODE_ROAMING) then
+    if !GetGlobalBool("__ident1fier____Warmup_playfight__") or ply.spectatingGame then 
+        net.Start("playfight_client_spectate_info")
+        net.WriteBool(true)
+        net.Send(ply)
+
+        if table.HasValue(playfight_players_spectating, ply) then
+            -- SPECTATE CONTROLS
+            -- Spacebar to toggle between players and free roam.
+            if ply:KeyPressed(IN_JUMP) then
+                -- Cycle through spectate modes
+                if ply.spectateMode == nil then ply.spectateMode = 0 end
+
+                print("jumppress")
+
+                ply.spectateMode = ply.spectateMode + 1
+                if ply.spectateMode > 2 then
+                    ply.spectateMode = 0
+                end
+
+                -- I wish i had switch statements here :)
+                -- First Person Spectate
+                if ply.spectateMode == 1 then
+                    local playerToSpectate = ply.spectatedPlayer
+
+                    if playerToSpectate == nil then
+                        local playerToSpectateFound = false
+
+                        for k, v in next, player.GetAll() do
+                            if v ~= ply and !table.HasValue(playfight_server_menu_info, v) and v:Alive() and !table.HasValue(playfight_players_spectating, v) then
+                                if !playerToSpectateFound then
+
+                                    playerToSpectate = v
+
+                                    playerToSpectateFound = true
+                                end
+                            end
+                        end
+                    end
+
+                    if playerToSpectate != nil then
+                        ply.spectatedPlayer = playerToSpectate
+                    end
+
+                -- Third Person Spectate
+                elseif ply.spectateMode == 2 then
+                    local playerToSpectate = ply.spectatedPlayer
+
+                    if playerToSpectate == nil then
+                        local playerToSpectateFound = false
+
+                        for k, v in next, player.GetAll() do
+                            if v ~= ply and !table.HasValue(playfight_server_menu_info, v) and v:Alive() and !table.HasValue(playfight_players_spectating, v) then
+                                if !playerToSpectateFound then
+
+                                    playerToSpectate = v
+
+                                    playerToSpectateFound = true
+                                end
+                            end
+                        end
+                    end
+
+                    if playerToSpectate != nil then
+                        ply.spectatedPlayer = playerToSpectate
+                    end
+                end
+
+                -- Send packet to client updating the current spectated player's name
+                net.Start("playfight_client_spectate_player_name")
+                    if ply.spectatedPlayer != nil then
+                        net.WriteString(ply.spectatedPlayer:Nick())
+                    else
+                        net.WriteString("")
+                    end
+                net.Send(ply)
+
+            end
+        end
+
+        -- Cycle through players on left click, or put player into first person spectate mode if they're in free roam
+        if ply:KeyPressed(IN_ATTACK) then
+            
+            local alivePlayers = {}
+
+            for k, v in next, player.GetAll() do
+                if !table.HasValue(playfight_players_spectating, v) and !table.HasValue(playfight_server_menu_info, v) and v != ply then
+                    table.insert(alivePlayers, v)
+                end
+            end
+
+            -- If player is in free roam, put them in spectate mode 1(first person)
+            if ply.spectateMode == 0 then
+
+                ply.spectateMode = 1
+                local playerToSpectateFound = false
+
+                for k, v in next, player.GetAll() do
+                    if v ~= ply and !table.HasValue(playfight_server_menu_info, v) and v:Alive() and !table.HasValue(playfight_players_spectating, v) then
+                        if !playerToSpectateFound then
+
+                            ply.spectatedPlayer = v
+
+                            playerToSpectateFound = true
+                        end
+                    end
+                end
+
+                -- Send packet to client updating the current spectated player's name
+                net.Start("playfight_client_spectate_player_name")
+                    if ply.spectatedPlayer != nil then
+                        net.WriteString(ply.spectatedPlayer:Nick())
+                    else
+                        net.WriteString("")
+                    end
+                net.Send(ply)
+            else
+                -- Otherwise, just cycle through the players
+                local currentIndex = 0
+                for k, v in next, alivePlayers do
+                    if v == ply.spectatedPlayer and v != ply then
+                        currentIndex = k
+                    end
+                end
+
+                currentIndex = currentIndex + 1
+
+                if currentIndex > #alivePlayers then
+                    currentIndex = 0 
+                    local playerFound = false
+
+                    for k, v in next, alivePlayers do
+                        if v != ply and !table.HasValue(playfight_players_spectating, v) and !table.HasValue(playfight_server_menu_info, v) and !playerFound then
+                            currentIndex = k
+
+                            playerFound = true
+                        end
+                    end
+                end
+
+                if alivePlayers[currentIndex] ~= nil then
+                    ply.spectatedPlayer = alivePlayers[currentIndex]
+                end
+                print(alivePlayers[currentIndex])
+                print(currentIndex)
+
+                -- Send packet to client updating the current spectated player's name
+                net.Start("playfight_client_spectate_player_name")
+                    if ply.spectatedPlayer != nil then
+                        net.WriteString(ply.spectatedPlayer:Nick())
+                    else
+                        net.WriteString("")
+                    end
+                net.Send(ply)
+            end
+        end
+
+        if ply.spectatedPlayer ~= nil then
+            if ply.spectatedPlayer.ragfall ~= nil then
+                ply:Spectate(OBS_MODE_CHASE)
+                ply:SpectateEntity(ply.spectatedPlayer.ragfall)
+            else
+
+                if ply.spectateMode == 0 and ply:GetObserverMode() != OBS_MODE_ROAMING then
+                    ply.spectatedPlayer = nil
+                    ply:SpectateEntity(NULL)
+                    ply:Spectate(OBS_MODE_ROAMING)
+                end
+
+                if ply.spectateMode == 1 then
+                    ply:Spectate(OBS_MODE_IN_EYE)
+                    ply:SpectateEntity(ply.spectatedPlayer)
+
+                    
+                end
+                if ply.spectateMode == 2 then
+                    ply:Spectate(OBS_MODE_CHASE)
+                    ply:SpectateEntity(ply.spectatedPlayer)
+                end
+            end
+
+            -- If spectated player dies, do appropriate action(either move to next player or move to roaming if there are no more players)
+            if table.HasValue(playfight_players_spectating, ply.spectatedPlayer) then
+                local alivePlayers = {}
+
+                for k, v in next, player.GetAll() do
+                    if !table.HasValue(playfight_players_spectating, v) and !table.HasValue(playfight_server_menu_info, v) and v != ply then
+                        table.insert(alivePlayers, v)
+                    end
+                end
+
+                if #alivePlayers > 0 then
+                    ply.spectatedPlayer = alivePlayers[1]
+                else
+                    ply.spectatedPlayer = nil
+                    ply:SpectateEntity(NULL)
+                    ply:Spectate(OBS_MODE_ROAMING)
+                end
+            end
+        end
+
+        if ply:GetObserverMode() == OBS_MODE_ROAMING or ply.spectatedPlayer ~= nil then
             return false
         end
 
-        ply:Spectate(OBS_MODE_ROAMING)
+        if !ply:Alive() then
+            ply:Spectate(OBS_MODE_ROAMING)
+
+            print("roaming")
+        end
+
+        if !table.HasValue(playfight_players_spectating, ply) then
+            
+
+            table.insert(playfight_players_spectating, ply)
+        end
     end
 end)
 
@@ -790,7 +1064,7 @@ local playfight_mapcount = 1
 local AllMaps = file.Find( "maps/*.bsp", "GAME" )
 for key, map in pairs( AllMaps ) do
 	AllMaps[ key ] = string.gsub( map, ".bsp", "" )
-    if string.sub(AllMaps[key], 0, 3) == "pf_" then
+    if string.sub(AllMaps[key], 0, 3) == "pf_" || AllMaps[key] == "gm_trajectory" then
         playfight_mapsinstalled[playfight_mapcount] = AllMaps[key]
         playfight_mapvotes[playfight_mapcount] = 0
         playfight_mapcount = playfight_mapcount + 1
@@ -831,12 +1105,12 @@ timer.Create("__playdelay___timer__playfight_____", 0.1, 0, function()
                 local ply = v
 
                 -- Take player out of ragdoll
-                if ply:Alive() then
+                if ply:Alive() and !table.HasValue(playfight_players_spectating, ply) then
 
                     ply.fell = 0
                     ply:Spectate( OBS_MODE_NONE )	
                     ply:UnSpectate()
-                    
+
                     if ( ply.ragfall ~= nil and ply.ragfall ~= NULL) then
                         ply:SetVelocity(ply.ragfall:GetVelocity())
                     end
@@ -886,6 +1160,16 @@ hook.Add("Tick", "__pfPLayIfghIT__tikcFREeeEEEe___Postiion", function()
             ply.lastavailable = pos
         end
 
+        -- Teleport to spectated player every tick.
+        -- This is because when spectating an entity, gmod doesn't actually set the position of the player to the player that's being spectated
+        -- This means that optimizations like area portals or just general visleaf calculations might break in weird ways.
+        if ply.spectatedPlayer ~= nil and table.HasValue(playfight_players_spectating, ply) then
+            if ply.spectatedPlayer.ragfall ~= nil then
+                ply:SetPos(ply.spectatedPlayer.ragfall:GetPos())
+            else
+                ply:SetPos(ply.spectatedPlayer:GetPos())
+            end
+        end
 
         //net.Start("playfight_client_showlastpos")
         //net.WriteFloat(pos.x)
@@ -907,7 +1191,7 @@ hook.Add("Tick", "__pfPLayIfghIT__tikcFREeeEEEe___Postiion", function()
 end)
 
 hook.Add("PlayerSpawn","__plAPYIghiT ___ _NoCollide __ __ Players", function(ply)
-        ply:SetCollisionGroup(COLLISION_GROUP_WEAPON)
+    ply:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 end)
 
 -- Helper function
@@ -981,4 +1265,9 @@ hook.Add("PlayerDisconnected", "___playfight_player_disconnect___", function(ply
     net.Start("playfight_client_playerdisconnect")
     net.WriteString(ply:SteamID())
     net.Broadcast()
+
+    -- Remove player from spectator table so if they join back it won't mess things up.
+    if table.HasValue(playfight_players_spectating, ply) then
+        table.RemoveByValue(playfight_players_spectating, ply)
+    end
 end)

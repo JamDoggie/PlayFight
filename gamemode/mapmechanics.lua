@@ -1,3 +1,5 @@
+
+
 -- This is called right after the game has processed all the map entities. This is responsible for using the weapon_spawn to remove them from the world and take note
 -- of their positions for weapon spawning.
 -- For info on mapping for this gamemode, check here: (insert youtube link when i make the guide video here)
@@ -11,6 +13,8 @@ local weaponDelay = defaultWeaponDelay
 local currentWeaponDelay = weaponDelay
 
 playfight_isSuddenDeath = false
+
+playfight_kills_list = playfight_kills_list or {}
 
 -- Table of weapons and their randomization weight respectively
 playfight_weapons_table = {
@@ -63,13 +67,23 @@ function GM:InitPostEntity()
 
     end
 
+-- Clears spectator list for all players who hit didn't hit spectate on the main menu and sends a packet to the clients about their spectate status.
+function playfight_clearspectators()
+    for k, v in next, player.GetAll() do
+        if table.HasValue(playfight_players_spectating, v) and v.spectatingGame ~= true then
+            table.RemoveByValue(playfight_players_spectating, v)
+
+            net.Start("playfight_client_spectate_info")
+            net.WriteBool(false)
+            net.Send(v);
+        end
+    end
+end
 
 
--- This codebase dates back to about january 2018 and i'm not sure why I decided to do it this way, but this
--- seems to be storing the table in a global fashion so it can be accessed later outside of this scope i think question mark?
+-- This codebase dates back to about january 2018 and I'm not sure why I decided to do it this way.
+-- I have no idea why I am storing these as global variables with a method instead of just... setting them.
 -- (Also an example of professional naming conventions)
-
--- Update: still not sure why i did it like this, also not sure what i was on about in the first comment.
 
 SetGlobalString("wOwWWW___wepPSTaTALBE___xdddx", util.TableToJSON(wepsTable))
 SetGlobalString("wOwWWW___RPGcAMERa___xdddx", util.TableToJSON(uiCams))
@@ -220,6 +234,8 @@ if ( globalTable ~= nil ) then
 
 
                             -- Start round now
+                            playfight_clearspectators()
+
                             SetGlobalInt("__ident1fier____Warmup_time_playfight__", 300)
                             SetGlobalBool("__ident1fier____Warmup_playfight__", false)
 
@@ -227,16 +243,22 @@ if ( globalTable ~= nil ) then
 
                             for k,v in next, player.GetAll() do
                                 v:Freeze(false)
-                                v:StripWeapons()
-                                v:Spawn()
 
-                                -- Teleport player to random spawn point
-                                if #ents.FindByClass("info_player_start") > 0 then
-                                    local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
+                                if v.spectatingGame ~= true then
+                                    v.spectatedPlayer = nil
+                                    v.ragfall = nil
+                                    v:Spawn()
+                                    v.fell = 0
+                                    v:StripWeapons()
 
-                                    for i, value in pairs(ents.FindByClass("info_player_start")) do
-                                        if i == spawnSelection and util.IsInWorld(value:GetPos()) then
-                                            v:SetPos(value:GetPos())
+                                    -- Teleport player to random spawn point
+                                    if #ents.FindByClass("info_player_start") > 0 then
+                                        local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
+
+                                        for i, value in pairs(ents.FindByClass("info_player_start")) do
+                                            if i == spawnSelection and util.IsInWorld(value:GetPos()) then
+                                                v:SetPos(value:GetPos())
+                                            end
                                         end
                                     end
                                 end
@@ -373,6 +395,8 @@ if ( globalTable ~= nil ) then
             timer.Create("__playfightRumblequestionnewRoundDRAW__", 3, 1, function()
                 
                 -- Clean up map
+                playfight_clearspectators()
+
                 net.Start("playfight_round_winner")
                 net.WriteString("")
                 net.Broadcast()
@@ -394,42 +418,42 @@ if ( globalTable ~= nil ) then
                 end)
 
                 for k,v in next, player.GetAll() do
-
-                    v.ragfall = nil
-
-                    if v:Health() > 0 then
-                        v:Spawn()
-                    end
-
                     v:Freeze(false)
-                    v.fell = 0
-                    v:StripWeapons()
-                    if v.toModel ~= nil then
-                        v:SetModel(v.toModel)
-                    end
 
-                    if playfight_isSuddenDeath then
-                        v:SetHealth(1)
-                    end
+                    if v.spectatingGame ~= true then
+                        v.spectatedPlayer = nil
+                        v.ragfall = nil
 
-                    -- Teleport player to random spawn point
-                    if #ents.FindByClass("info_player_start") > 0 then
-                        local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
+                        if v:Health() > 0 then
+                            v:Spawn()
+                        end
 
-                        for i, value in pairs(ents.FindByClass("info_player_start")) do
-                            if i == spawnSelection then
-                                v:SetPos(value:GetPos())
+                        v.fell = 0
+                        v:StripWeapons()
+                        if v.toModel ~= nil then
+                            v:SetModel(v.toModel)
+                        end
+
+                        if playfight_isSuddenDeath then
+                            v:SetHealth(1)
+                        end
+
+                        -- Teleport player to random spawn point
+                        if #ents.FindByClass("info_player_start") > 0 then
+                            local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
+
+                            for i, value in pairs(ents.FindByClass("info_player_start")) do
+                                if i == spawnSelection then
+                                    v:SetPos(value:GetPos())
+                                end
                             end
                         end
+
+                        if table.HasValue(playfight_server_menu_info, v) then
+                            v:KillSilent()
+                            v:Spectate(OBS_MODE_ROAMING)
+                        end
                     end
-
-                    if table.HasValue(playfight_server_menu_info, v) then
-                        v:KillSilent()
-                        v:Spectate(OBS_MODE_ROAMING)
-
-                        print("player was still in menu")
-                    end
-
                 end
 
                 SetGlobalInt("__ident1fier____Warmup_time_playfight__", 300)
@@ -485,7 +509,7 @@ end
 
 -- If there's only one player alive, that player wins.
 hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inflictor, attacker )
-    if (GetGlobalBool("__ident1fier____Warmup_playfight__") == false) then
+    if GetGlobalBool("__ident1fier____Warmup_playfight__") == false then
         
         local alivePly = {}
 
@@ -538,6 +562,8 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                     playfight_isSuddenDeath = false
 
                     -- Clean up map
+                    playfight_clearspectators()
+
                     net.Start("playfight_round_winner")
                     net.WriteString("")
                     net.Broadcast()
@@ -560,23 +586,26 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                     end)
 
                     for k,v in next, player.GetAll() do
-
-                        v.ragfall = nil
-                        v:Spawn()
                         v:Freeze(false)
-                        v.fell = 0
-                        v:StripWeapons()
-                        if v.toModel ~= nil then
-                            v:SetModel(v.toModel)
-                        end
 
-                        -- Teleport player to random spawn point
-                        if #ents.FindByClass("info_player_start") > 0 then
-                            local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
+                        if v.spectatingGame ~= true then
+                            v.spectatedPlayer = nil
+                            v.ragfall = nil
+                            v:Spawn()
+                            v.fell = 0
+                            v:StripWeapons()
+                            if v.toModel ~= nil then
+                                v:SetModel(v.toModel)
+                            end
 
-                            for i, value in pairs(ents.FindByClass("info_player_start")) do
-                                if i == spawnSelection then
-                                    v:SetPos(value:GetPos())
+                            -- Teleport player to random spawn point
+                            if #ents.FindByClass("info_player_start") > 0 then
+                                local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
+
+                                for i, value in pairs(ents.FindByClass("info_player_start")) do
+                                    if i == spawnSelection then
+                                        v:SetPos(value:GetPos())
+                                    end
                                 end
                             end
                         end
@@ -598,68 +627,110 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                     net.WriteFloat(playfight_currentRound)
                     net.Broadcast()
                 else
-
-                    local playerWin = 0
-                    local playerName = ""
-
-                    -- Get player with most wins
-                    for k,ply in next, player.GetAll() do
-                        if playerWin == 0 then
-                            if ply.wins ~= nil then
-                                playerWin = ply.wins
-                                playerName = ply:GetName()
-                            end
-                        else
-                            if ply.wins ~= nil then
-                                if ply.wins > playerWin then
-                                    playerWin = ply.wins
-                                    playerName = ply:GetName()
-                                end
-                            end
-                        end
-
-                        PlayfightSendTabInfo(ply)
-                    end
-
-                    net.Start("playfight_mapinfo")
-                    net.WriteFloat(#playfight_mapsinstalled)
-
-                    -- Iterate through each map and send it to the client.
-                    for k,v in next, playfight_mapsinstalled do
-                        net.WriteString(v)
-                    end
-
-                    net.Broadcast()
-
-
-                    net.Start("playfight_round_winner")
-                    net.WriteString("Game end, " .. playerName)
-                    net.Broadcast()
-
-                    SetGlobalInt("__ident1fier____Warmup_time_playfight__", 15)
-
-                    timer.Create("__PlayFight_SwitchMap_Timer__", 1, 0, function()
-                        SetGlobalInt("__ident1fier____Warmup_time_playfight__", GetGlobalInt("__ident1fier____Warmup_time_playfight__", 15) - 1)
-                    end)
-
-                    timer.Create("__PlayFight_SwitchMap__", 15, 1, function()
-                        local winningMaps = {}
-                        local maxVotes = max(playfight_mapvotes)
-
-                        for i = 1, #playfight_mapvotes do
-                            if playfight_mapvotes[i] == maxVotes then
-                                table.insert(winningMaps, playfight_mapsinstalled[i])
-                            end
-                        end
-
-                        local mapToChange = math.random(1, #winningMaps)
-
-                        print("map to change: " .. mapToChange)
-
-                        RunConsoleCommand( "changelevel", winningMaps[mapToChange] )
-                    end)
+                    playfight_end_game()
                 end
             end)
         end
     end
 end)
+
+hook.Add("PlayerDeath", "playfight_hook_player_death_map_mechanics", function(victim, inflictor, attacker)
+    if attacker ~= nil and attacker:IsPlayer() and attacker ~= victim and GetGlobalBool("__ident1fier____Warmup_playfight__") == false then
+        if playfight_kills_list[attacker] == nil then
+            playfight_kills_list[attacker] = 1
+        else
+            playfight_kills_list[attacker] = playfight_kills_list[attacker] + 1
+        end
+
+        -- Send to clients
+        net.Start("playfight_send_kills")
+        
+        local killsLength = 0
+
+        for k, v in pairs(playfight_kills_list) do
+            killsLength = killsLength + 1
+        end
+
+        net.WriteInt(killsLength, 15)
+
+
+        for k, v in pairs(playfight_kills_list) do
+            print(k)
+            print(v)
+            if k:SteamID() ~= nil and v ~= nil then
+                net.WriteString(k:SteamID())
+                net.WriteInt(v, 32)
+            else
+                net.WriteString("")
+                net.WriteInt(0, 32)
+            end
+        end
+
+        net.Broadcast()
+    end
+end)
+
+function playfight_end_game()
+    -- End game
+    local playerWin = 0
+    local playerName = "nobody"
+
+    -- Get player with most wins
+    for k,ply in next, player.GetAll() do
+        if playerWin == 0 then
+            if ply.wins ~= nil then
+                playerWin = ply.wins
+                playerName = ply:GetName()
+            end
+        else
+            if ply.wins ~= nil then
+                if ply.wins > playerWin then
+                    playerWin = ply.wins
+                    playerName = ply:GetName()
+                end
+            end
+        end
+
+        PlayfightSendTabInfo(ply)
+    end
+
+    net.Start("playfight_mapinfo")
+    net.WriteFloat(#playfight_mapsinstalled)
+
+    -- Iterate through each map and send it to the client.
+    for k,v in next, playfight_mapsinstalled do
+        net.WriteString(v)
+    end
+
+    net.Broadcast()
+
+
+    net.Start("playfight_round_winner")
+    net.WriteString("Game end, " .. playerName)
+    net.Broadcast()
+
+    SetGlobalInt("__ident1fier____Warmup_time_playfight__", 15)
+
+    timer.Create("__PlayFight_SwitchMap_Timer__", 1, 0, function()
+        SetGlobalInt("__ident1fier____Warmup_time_playfight__", GetGlobalInt("__ident1fier____Warmup_time_playfight__", 15) - 1)
+    end)
+
+    timer.Create("__PlayFight_SwitchMap__", 15, 1, function()
+        local winningMaps = {}
+        local maxVotes = max(playfight_mapvotes)
+
+        for i = 1, #playfight_mapvotes do
+            if playfight_mapvotes[i] == maxVotes then
+                table.insert(winningMaps, playfight_mapsinstalled[i])
+            end
+        end
+
+        local mapToChange = math.random(1, #winningMaps)
+
+        print("map to change: " .. mapToChange)
+
+        RunConsoleCommand( "changelevel", winningMaps[mapToChange] )
+    end)
+
+    playfight_game_ended = true
+end

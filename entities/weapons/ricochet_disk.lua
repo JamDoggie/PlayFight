@@ -126,22 +126,17 @@ function SWEP:PrimaryAttack()
                             disk:EmitSound("shatter.wav")
                         end
 
-                        if data.HitEntity:IsValid() and data.HitEntity:IsPlayer() and data.HitEntity ~= disk.owner then
-                            disk:Remove()
+                        local diskDamage = 20
 
+                        if data.HitEntity:IsValid() and data.HitEntity:IsPlayer() and data.HitEntity ~= disk.owner then
                             disk:EmitSound("decap.wav")
 
                             local plyr = data.HitEntity
 
-                            if !playfight_is_grace_period and !plyr:HasGodMode() then
-                                plyr:SetHealth(plyr:Health() - 20)
-                            end
-
-                            if plyr:Health() <= 0 then
-                                plyr:Kill()
-                            end
+                            plyr:TakeDamage(diskDamage, disk.owner, disk)
 
                             timer.Remove("playfight_ricochet_disk_dissapear_timer"..#playfight_ricochet_disks)
+                            disk:Remove()
                         end
 
                         //print("normal")

@@ -69,8 +69,8 @@ end)
 function playfight_scoreboard:show()
     playfight_scoreboard_visible = true
 
-    playfight_client_song_checkbox:Show()
-    playfight_client_song_slider:Show()
+    net.Start("playfight_client_request_kills")
+    net.SendToServer()
 
 	-- List
     local mainPanel = vgui.Create("DPanel")
@@ -86,10 +86,15 @@ function playfight_scoreboard:show()
         local tabStrip = vgui.Create("DPanel", mainPanel)
         tabStrip:SetPos(ScrW()/2 - (playfight_client_stripSize/2), (ScrH()/2 - (stripHeight/2) + (k*(stripHeight+3*ScrS()))) - 300 * ScrS())
 
+        local tabStripW, tabStripH = 0
+
         tabStrip.Paint = function(s, w, h)
             if ( FrameTime() ~= 0 ) then
-                draw.RoundedBox(0, 0, 0, w, h, Color(66,66,66,255))
-                draw.RoundedBox(0, 0, 0, w/5, h, Color(77,77,77,255))
+                draw.RoundedBox(0, 0, 0, w, h, Color(66,66,66,200))
+                draw.RoundedBox(0, 0, 0, w/5, h, Color(77,77,77,200))
+
+                tabStripW = w;
+                tabStripH = h;
             end
         end
 
@@ -101,7 +106,7 @@ function playfight_scoreboard:show()
         
         userBox.Paint = function(s, w, h)
             if ( FrameTime() ~= 0 ) then
-                draw.RoundedBox(0, 0, 0, w, h, Color(100,100,100,210))
+                draw.RoundedBox(0, 0, 0, w, h, Color(100,100,100,50))
             end
         end
 
@@ -146,13 +151,17 @@ function playfight_scoreboard:show()
         end
 
         local pw, ph = surface.GetTextSize(text)
+        
         local userName = vgui.Create("DLabel", tabStrip)
         
         
         userName:SetText(text)
         userName:SetPos(35 * ScrS(), 2*ScrS() + (3*ScrS()))
         userName:SetFont("PlayfightState")
-        userName:SetSize(pw, ph)
+
+        userName.Paint = function(s, w, h)
+            userName:SetSize(tabStripW / 5, ph)
+        end
 
         -- Player wins
         surface.SetFont("ScoreboardStatsPlayfight")
@@ -186,9 +195,38 @@ function playfight_scoreboard:show()
             playerHealth.Paint = function(s, w, h)
                 local healthText = math.max(player.GetBySteamID(uuid):Health(), 0).."%"
 
-                draw.DrawText(healthText, "ScoreboardStatsPlayfight", 0, 0, Color( 220, 220, 220, 255 ), TEXT_ALIGN_LEFT)
+                local healthColor = Color( 220, 220, 220, 255 )
+
+                if player.GetBySteamID(uuid):Health() <= 0 then
+                    healthColor = Color(145, 52, 42, 255)
+                end
+
+                draw.DrawText(healthText, "ScoreboardStatsPlayfight", 0, 0, healthColor, TEXT_ALIGN_LEFT)
             end
 
+        end
+
+        -- Player kills
+        if player.GetBySteamID(uuid) ~= false then
+            local killsLabel = vgui.Create("DLabel", tabStrip)
+            killsLabel:SetText("")
+            killsLabel:SetPos(215 * ScrS(), 6 * ScrS())
+            killsLabel:SetFont("ScoreboardStatsPlayfight")
+
+            killsLabel.Paint = function(s, w, h)
+                local killsText = "";
+                if player.GetBySteamID(uuid).kills ~= nil then
+                    if player.GetBySteamID(uuid).kills == 1 then
+                        killsText = tostring(player.GetBySteamID(uuid).kills).." Kill"
+                    else
+                        killsText = tostring(player.GetBySteamID(uuid).kills).." Kills"
+                    end
+                else
+                    killsText = "0 Kills"
+                end
+
+                draw.DrawText(killsText, "ScoreboardStatsPlayfight", 0, 0, Color( 220, 220, 220, 255 ), TEXT_ALIGN_LEFT)
+            end
         end
 
         -- Mute Button
@@ -210,7 +248,6 @@ function playfight_scoreboard:show()
         Mute:SetStretchToFit(false)
         Mute.muted = false
         
-
         -- Toggle player muted state
         Mute.DoClick = function()
             Mute.muted = !Mute.muted
@@ -225,14 +262,32 @@ function playfight_scoreboard:show()
                 Mute.ply:SetMuted(Mute.muted)
             end
         end
+
+
+        -- Ping
+        if player.GetBySteamID(uuid) ~= false then
+            local muteX, muteY = Mute:GetPos()
+
+            local pingLabel = vgui.Create("DLabel", tabStrip)
+            pingLabel:SetText("")
+            pingLabel:SetWidth(128 * ScrS())
+            pingLabel:SetHeight(64 * ScrS())
+
+
+            pingLabel.Paint = function(s, w, h)
+                local pingText = player.GetBySteamID(uuid):Ping().." Ping"
+                local pingWidth, pingHeight = surface.GetTextSize(pingText)
+
+                pingLabel:SetPos(tabStripW - (32 * ScrS()) - pingWidth, (tabStripH / 2) - (pingHeight / 2))
+
+                draw.DrawText(pingText, "ScoreboardStatsPlayfight", 0, 0, Color( 220, 220, 220, 255 ), TEXT_ALIGN_LEFT)
+            end
+        end
     end
     
     -- Remove everything when tab has stopped being held
 	function playfight_scoreboard:hide()
         playfight_scoreboard_visible = false
-        
-        playfight_client_song_checkbox:Hide()
-        playfight_client_song_slider:Hide()
 
         mainPanel:Remove()
         playfight_client_panels = {}
@@ -245,8 +300,6 @@ end
 hook.Add("KeyPress", "playfight_scoreboard_keypress", function(ply, key)
     if (key == IN_ATTACK2 and input.IsKeyDown(KEY_TAB)) then
         gui.EnableScreenClicker(true)
-        playfight_client_song_checkbox:MoveToFront()
-        playfight_client_song_slider:MoveToFront()
     end
 end)
 
@@ -267,6 +320,23 @@ net.Receive("playfight_client_playerdisconnect", function( len )
         for i = 1, #playfight_clientplayers do
             if playfight_clientplayers[i] == steamID then
                 table.remove(playfight_clientplayers, i)
+            end
+        end
+    end
+end)
+
+net.Receive("playfight_send_kills", function(len)
+    local listCount = net.ReadInt(15)
+
+    for i = 1, listCount, 1 do
+        local steamID = net.ReadString()
+        local kills = net.ReadInt(32)
+
+        for k, v in next, player.GetAll() do
+            if v:SteamID() ~= nil then
+                if steamID == v:SteamID() then
+                    v.kills = kills
+                end
             end
         end
     end

@@ -34,6 +34,15 @@
 			"type"		"CheckBox"
 			"default"	"1"
 		}
+
+		4
+		{
+			"name"		"pf_drawonsolo"
+			"text"		"End game if one or less people are connected"
+			"help"		"Ends the game on a draw and changes level if one or less people are connected to the server."
+			"type"		"CheckBox"
+			"default"	"1"
+		}
 	}
 
 }
