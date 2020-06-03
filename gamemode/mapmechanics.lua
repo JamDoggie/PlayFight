@@ -7,7 +7,7 @@
 local wepsTable = {}
 
 
-local defaultWeaponDelay = 8
+local defaultWeaponDelay = 5
 
 local weaponDelay = defaultWeaponDelay
 local currentWeaponDelay = weaponDelay
@@ -223,96 +223,96 @@ if ( globalTable ~= nil ) then
             if ( player.GetCount() - playMenus > 1 and GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) >= 0) then
                 SetGlobalInt("__ident1fier____Warmup_time_playfight__", GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) - 1)
                 if (GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) <= 0) then
+                    
+
                     for k,v in next, player.GetAll() do
                         v:Freeze(true)
+                    end
 
-                        -- Time in seconds till the game starts
-                        local timeTillStart = 5
+                    -- Time in seconds till the game starts
+                    local timeTillStart = 5
 
-                        -- Start round after 5 seconds
-                        timer.Simple(timeTillStart, function()
+                    -- Start round after 5 seconds
+                    timer.Simple(timeTillStart, function()
+                        -- Start round now
+                        playfight_clearspectators()
 
+                        SetGlobalInt("__ident1fier____Warmup_time_playfight__", 300)
+                        SetGlobalBool("__ident1fier____Warmup_playfight__", false)
 
-                            -- Start round now
-                            playfight_clearspectators()
+                        game.CleanUpMap()
 
-                            SetGlobalInt("__ident1fier____Warmup_time_playfight__", 300)
-                            SetGlobalBool("__ident1fier____Warmup_playfight__", false)
+                        for k,v in next, player.GetAll() do
+                            v:Freeze(false)
 
-                            game.CleanUpMap()
+                            if v.spectatingGame ~= true then
+                                v.spectatedPlayer = nil
+                                v.ragfall = nil
+                                v:Spawn()
+                                v.fell = 0
+                                v:StripWeapons()
 
-                            for k,v in next, player.GetAll() do
-                                v:Freeze(false)
+                                -- Teleport player to random spawn point
+                                if #ents.FindByClass("info_player_start") > 0 then
+                                    local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
 
-                                if v.spectatingGame ~= true then
-                                    v.spectatedPlayer = nil
-                                    v.ragfall = nil
-                                    v:Spawn()
-                                    v.fell = 0
-                                    v:StripWeapons()
-
-                                    -- Teleport player to random spawn point
-                                    if #ents.FindByClass("info_player_start") > 0 then
-                                        local spawnSelection = math.random(1, #ents.FindByClass("info_player_start"))
-
-                                        for i, value in pairs(ents.FindByClass("info_player_start")) do
-                                            if i == spawnSelection and util.IsInWorld(value:GetPos()) then
-                                                v:SetPos(value:GetPos())
-                                            end
+                                    for i, value in pairs(ents.FindByClass("info_player_start")) do
+                                        if i == spawnSelection and util.IsInWorld(value:GetPos()) then
+                                            v:SetPos(value:GetPos())
                                         end
                                     end
                                 end
                             end
-                            
-                            
+                        end
+                        
+                        
 
-                            -- Play round start sound
-                            net.Start("playfight_client_playsound")
-                            net.WriteString("suitchargeok1.wav")
-                            net.Broadcast()
+                        -- Play round start sound
+                        net.Start("playfight_client_playsound")
+                        net.WriteString("suitchargeok1.wav")
+                        net.Broadcast()
 
-                            -- Play music
-                            net.Start("playfight_client_play_music")
-                            net.Broadcast()
+                        -- Play music
+                        //net.Start("playfight_client_play_music")
+                        //net.Broadcast()
 
-                            -- Grace Period
-                            playfight_is_grace_period = true
+                        -- Grace Period
+                        playfight_is_grace_period = true
 
-                            PlayFightCountGracePeriod(playfight_grace_period_length)
+                        PlayFightCountGracePeriod(playfight_grace_period_length)
 
-                            timer.Create("playfight_timer_grace_period_disable", playfight_grace_period_length, 1, function()
-                                playfight_is_grace_period = false
-                            end)
-
-                            hook.Add("PlayerDeath", "__PlAYEr_deeathTH_playfight__", function( ply, inflictor, attacker )
-                                if !GetGlobalBool("__ident1fier____Warmup_playfight__", true) then
-                                    ply.shouldSpec = true
-                                    ply.killer = attacker
-                                end
-                            end)
+                        timer.Create("playfight_timer_grace_period_disable", playfight_grace_period_length, 1, function()
+                            playfight_is_grace_period = false
                         end)
 
-                        local timeCounted = 0
-
-                        -- Timer for sending time till round start 
-                        timer.Create("_gameStartTime_PLayFiGhT_", 1, timeTillStart, function()
-                            timeCounted = timeCounted + 1
-
-                            local countedTime = timeTillStart - timeCounted
-
-                            net.Start("playfight_client_screenmessage")
-
-                            if timeCounted == timeTillStart then
-                                net.WriteString("")
-                            else
-                                net.WriteString("Game Starting in "..countedTime)
+                        hook.Add("PlayerDeath", "__PlAYEr_deeathTH_playfight__", function( ply, inflictor, attacker )
+                            if !GetGlobalBool("__ident1fier____Warmup_playfight__", true) then
+                                ply.shouldSpec = true
+                                ply.killer = attacker
                             end
-
-                            net.Broadcast()
-
-                            
                         end)
-                    end
+                    end)
+
+                    local timeCounted = 0
+
+                    -- Timer for sending time till round start 
+                    timer.Create("_gameStartTime_PLayFiGhT_", 1, timeTillStart, function()
+                        timeCounted = timeCounted + 1
+
+                        local countedTime = timeTillStart - timeCounted
+
+                        net.Start("playfight_client_screenmessage")
+
+                        if timeCounted == timeTillStart then
+                            net.WriteString("")
+                        else
+                            net.WriteString("Game Starting in "..countedTime)
+                        end
+
+                        net.Broadcast()
+
+                        
+                    end)
 
                     timer.Simple(5, function()
                         print("Round starting!")
@@ -474,31 +474,32 @@ end
                     ply.isSpawnedd = true
                     local timerInc = 1
 
-                    if uiCams[1] ~= nil then
-                        ply:SetPos(uiCams[1])
-                        ply:SetEyeAngles(camAngles[1])
+                    timer.Simple(0, function()
+                        if uiCams[1] ~= nil then
 
-                        timerInc = timerInc + 1
+                            timerInc = timerInc + 1
 
-                        timer.Create("TiIImner__camAngles"..ply:Nick(), 11, 0, function()
-                            if ply ~= nil and ply:IsValid() and uiCams[1] ~= nil then
-                                if (  table.HasValue(playfight_server_menu_info, ply) ) then
-                                    ply:SetPos(uiCams[timerInc])
-                                    ply:SetEyeAngles(camAngles[timerInc])
+                            timer.Create("TiIImner__camAngles"..ply:Nick(), 11, 0, function()
+                                if ply ~= nil and ply:IsValid() and uiCams[1] ~= nil then
+                                    if (  table.HasValue(playfight_server_menu_info, ply) ) then
+                                        ply:SetPos(uiCams[timerInc])
+                                        ply:SetEyeAngles(camAngles[timerInc])
 
-                                    if ( timerInc + 1 > #uiCams) then
+                                        if ( timerInc + 1 > #uiCams) then
 
-                                        timerInc = 1
+                                            timerInc = 1
 
-                                    else
+                                        else
 
-                                        timerInc = timerInc + 1
+                                            timerInc = timerInc + 1
 
+                                        end
                                     end
                                 end
-                            end
-                        end) 
-                    end
+                            end) 
+                        end
+                    end)
+                    
                 end
             end
         end
@@ -655,8 +656,6 @@ hook.Add("PlayerDeath", "playfight_hook_player_death_map_mechanics", function(vi
 
 
         for k, v in pairs(playfight_kills_list) do
-            print(k)
-            print(v)
             if k:SteamID() ~= nil and v ~= nil then
                 net.WriteString(k:SteamID())
                 net.WriteInt(v, 32)

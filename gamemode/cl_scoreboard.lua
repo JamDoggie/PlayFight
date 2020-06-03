@@ -33,11 +33,27 @@ playfight_client_userpictures = playfight_client_userpictures or {}
 
 playfight_scoreboard_visible = false
 
+function playfightScoreboardRemovePlayer(i)
+    table.remove(playfight_clientplayers, i)
+
+    playfight_client_panels[i]:Remove()
+    table.remove(playfight_client_panels, i)
+
+    playfight_client_userpictures[i]:Remove()
+    table.remove(playfight_client_userpictures, i)
+
+    table.remove(playfight_clientplayerwins, i)
+end
+
+
+
 hook.Add( "KeyPress", "__playfight_client_keypress_scoreboard_lerp__", function( ply, key )
 	if ( key == IN_SCORE ) then
 		playfight_client_stripSize = 0
 	end
 end )
+
+
 
 hook.Add("HUDPaint", "__playfight_client_scoreboard_draw__", function()
     -- This is very questionable as if you change your tab bind, it'll still force you to use tab which will probably break things.
@@ -84,7 +100,7 @@ function playfight_scoreboard:show()
     for k,uuid in next, playfight_clientplayers do
         -- Display player's stats
         local tabStrip = vgui.Create("DPanel", mainPanel)
-        tabStrip:SetPos(ScrW()/2 - (playfight_client_stripSize/2), (ScrH()/2 - (stripHeight/2) + (k*(stripHeight+3*ScrS()))) - 300 * ScrS())
+        tabStrip:SetPos(ScrW() / 2 - (playfight_client_stripSize / 2), (ScrH() / 2 - (stripHeight/2) + (k * (stripHeight + 3 * ScrS()))) - 300 * ScrS())
 
         local tabStripW, tabStripH = 0
 
@@ -171,6 +187,7 @@ function playfight_scoreboard:show()
         playerWins:SetFont("ScoreboardStatsPlayfight")
 
         playerWins.Paint = function(s, w, h)
+            surface.SetFont("ScoreboardStatsPlayfight")
             local winText = ""
 
             if playfight_clientplayerwins[k] == 1 then
@@ -178,6 +195,9 @@ function playfight_scoreboard:show()
             else
                 winText = playfight_clientplayerwins[k] .. " Wins"
             end
+            
+            local winWidth, winHeight = surface.GetTextSize(winText)
+            playerWins:SetSize(winWidth, winHeight)
 
             draw.DrawText(winText, "ScoreboardStatsPlayfight", 0, 0, Color( 220, 220, 220, 255 ), TEXT_ALIGN_LEFT)
         end
@@ -200,6 +220,9 @@ function playfight_scoreboard:show()
                 if player.GetBySteamID(uuid):Health() <= 0 then
                     healthColor = Color(145, 52, 42, 255)
                 end
+
+                local healthWidth, healthHeight = surface.GetTextSize(healthText)
+                playerHealth:SetSize(healthWidth, healthHeight)
 
                 draw.DrawText(healthText, "ScoreboardStatsPlayfight", 0, 0, healthColor, TEXT_ALIGN_LEFT)
             end
@@ -224,6 +247,9 @@ function playfight_scoreboard:show()
                 else
                     killsText = "0 Kills"
                 end
+
+                local killsWidth, killsHeight = surface.GetTextSize(killsText)
+                killsLabel:SetSize(killsWidth, killsHeight)
 
                 draw.DrawText(killsText, "ScoreboardStatsPlayfight", 0, 0, Color( 220, 220, 220, 255 ), TEXT_ALIGN_LEFT)
             end
@@ -313,13 +339,15 @@ function GM:ScoreboardHide()
 	playfight_scoreboard:hide()
 end
 
+
+
 net.Receive("playfight_client_playerdisconnect", function( len )
     local steamID = net.ReadString()
 
     if player.GetBySteamID(steamID) ~= nil then
         for i = 1, #playfight_clientplayers do
             if playfight_clientplayers[i] == steamID then
-                table.remove(playfight_clientplayers, i)
+                playfightScoreboardRemovePlayer(i)
             end
         end
     end

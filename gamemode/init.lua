@@ -69,8 +69,6 @@ function playfight_increase_kills(ply)
 
 
         for k, v in pairs(playfight_kills_list) do
-            print(k)
-            print(v)
             if k:SteamID() ~= nil and v ~= nil then
                 net.WriteString(k:SteamID())
                 net.WriteInt(v, 32)
@@ -184,7 +182,7 @@ hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
 
                                     hit.ownply:KillSilent()
 
-                                    playfight_send_killfeed(ply:GetName(), ply:Team(), "ragdoll", hit.ownply:GetName(), hit.ownply:Team())
+                                    playfight_send_killfeed(ply:GetName(), ply:Team(), "prop_ragdoll", hit.ownply:GetName(), hit.ownply:Team())
                                     playfight_increase_kills(ply)
 
                                     hit.ownply.fell = 0
@@ -326,7 +324,7 @@ hook.Add("Tick", "xdxddd__plAYer__clickKKPlay_dEdeaHooK", function()
 
     -- Send ragdoll information to clients for proper name tag displaying.
     for k, ply in next, player.GetAll() do
-        if ply ~= nil and ply:IsValid() and ply:Alive() then
+        if ply ~= nil and ply:IsValid() then
             if ply.ragfall ~= nil then
                 net.Start("playfight_client_ragdoll")
                 net.WriteString(ply:Nick())
@@ -575,6 +573,7 @@ end)
     end)
 
 function GM:KeyPress(ply, key)
+    -- Super charging
     if key == IN_ATTACK2 and ply.superenergy ~= nil and ply.fell == 0 and ply.superenergy == 100 then 
         ply.cansuper = ply.superenergy 
 
@@ -588,6 +587,11 @@ function GM:KeyPress(ply, key)
         net.WriteBool(true)
         net.WriteString(ply:Nick())
         net.Broadcast()
+    end
+
+    -- Throwing weapons
+    if key == IN_RELOAD and ply:GetActiveWeapon() ~= NULL then
+        ply:DropWeapon(ply:GetActiveWeapon(), nil, ply:EyeAngles():Forward() * 1000) -- Velocity actually clamps at 400 unfortunately
     end
 end
 
@@ -644,7 +648,7 @@ function GM:KeyRelease(ply, key)
                 ragdoll:AddCallback("PhysicsCollide", function(ent, data)
                     local hit = data.HitEntity
 
-                    if (hit:IsPlayer() and hit:IsValid() and hit:Alive() and !table.HasValue(ragdoll.hitEntities, hit)) or (hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit.ownply:Alive() and !table.HasValue(ragdoll.hitEntities, hit)) then
+                    if (hit:IsPlayer() and hit:IsValid() and hit:Alive() and !table.HasValue(ragdoll.hitEntities, hit)) or (hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and !table.HasValue(ragdoll.hitEntities, hit)) then
                         local totalVelocity = ragdoll:GetVelocity().x + ragdoll:GetVelocity().y
 
                         local damageToTake = math.floor(math.abs(totalVelocity) / 45)
@@ -653,28 +657,27 @@ function GM:KeyRelease(ply, key)
                             if hit:IsPlayer() then
                                 hit:TakeDamage(damageToTake, ply, ragdoll)
                                 hit:DropWeapon()
-
-                                table.insert(ragdoll.hitEntities, hit)
                             elseif hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit ~= ragdoll && !playfight_is_grace_period then
                                 hit.ownply:TakeDamage(damageToTake, ply, ragdoll)
                                 hit.ownply.healthBefore = hit.ownply.healthBefore - damageToTake
                                 
-                                table.insert(ragdoll.hitEntities, hit)
-
                                 if hit.ownply.healthBefore <= 0 then
-
                                     hit.ownply.healthBefore = 100
 
                                     hit.ownply:SetPos(ply.ragfall:GetPos())
 
-                                    hit.ownply:Kill()
-                                    
-                                    hit.ownply:GetRagdollEntity():Remove()
+                                    hit.ownply:KillSilent()
+
+                                    playfight_send_killfeed(ply:GetName(), ply:Team(), "prop_ragdoll", hit.ownply:GetName(), hit.ownply:Team())
+                                    playfight_increase_kills(ply)
 
                                     hit.ownply.fell = 0
                                 end
                             end
                         end
+                        
+
+                        table.insert(ragdoll.hitEntities, hit)
                     end
                 end)
 
@@ -852,8 +855,6 @@ hook.Add("PlayerDeathThink", "__PLayF1Ght_playDeADTTHthINK__", function( ply )
                 -- Cycle through spectate modes
                 if ply.spectateMode == nil then ply.spectateMode = 0 end
 
-                print("jumppress")
-
                 ply.spectateMode = ply.spectateMode + 1
                 if ply.spectateMode > 2 then
                     ply.spectateMode = 0
@@ -982,8 +983,6 @@ hook.Add("PlayerDeathThink", "__PLayF1Ght_playDeADTTHthINK__", function( ply )
                 if alivePlayers[currentIndex] ~= nil then
                     ply.spectatedPlayer = alivePlayers[currentIndex]
                 end
-                print(alivePlayers[currentIndex])
-                print(currentIndex)
 
                 -- Send packet to client updating the current spectated player's name
                 net.Start("playfight_client_spectate_player_name")
@@ -1046,8 +1045,6 @@ hook.Add("PlayerDeathThink", "__PLayF1Ght_playDeADTTHthINK__", function( ply )
 
         if !ply:Alive() then
             ply:Spectate(OBS_MODE_ROAMING)
-
-            print("roaming")
         end
 
         if !table.HasValue(playfight_players_spectating, ply) then

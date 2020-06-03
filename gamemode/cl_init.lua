@@ -49,8 +49,12 @@ LocalPlayer().playfight_client_super_flash_dir = 0
 local currentSuperLerp = 0
 local currentHealthLerp = 0
 
+-- Kill icons
+killicon.Add("prop_ragdoll", "icons/ragdollicon", Color( 255, 80, 0, 255 ))
+killicon.Add("hitscan_crossbow", "icons/crossbowicon", Color( 255, 80, 0, 255 ))
+
 surface.CreateFont( "PlayfightState", {
-	font = "Tahoma", -- Use the font-name which is shown to you by your operating system Font Viewer, not the file name
+	font = "Tahoma",
 	extended = false,
 	size = 15 * ScrS(),
 	weight = 500,
@@ -109,7 +113,6 @@ playfight_client_stunstring = ""
 local html = vgui.Create( "DHTML" )
 html:Dock( FILL )
 html:SetAllowLua(true)
-html:OpenURL("http://quintonswenski.com/Jamdoggie/index.html")
 
 html:AddFunction("playfight", "playgame", function()
     net.Start("playfight_player_start_play")
@@ -167,11 +170,15 @@ html:AddFunction("playfight", "setmusicvolume", function(volume)
     end
 end)
 
+html:OpenURL("http://quintonswenski.com/Jamdoggie/index.html")
+
+
+
 function html:Paint()
     draw.RoundedBox(0, 0, 0, ScrW(), ScrH(), Color(0, 0, 0, 122))
 end
 
---main menu
+-- Main menu
 
 util.PrecacheModel("models/weapons/ricochet/c_ricochet_disc.mdl")
 util.PrecacheModel("models/weapons/ricochet/w_ricochet_disc.mdl")
@@ -183,7 +190,7 @@ util.PrecacheModel("models/weapons/c_crossbow.mdl")
 util.PrecacheModel("models/weapons/w_crossbow.mdl")
 
 
---main menu
+-- Main menu
 playfight_playerframe = vgui.Create("DFrame")
 
 playfight_playerframe:SetVisible( true )
@@ -585,10 +592,6 @@ net.Receive("playfight_client_showlastpos", function()
     maxZ = net.ReadFloat()
 
     isValid = net.ReadBool()
-
-    print(Vector(posX, posY, posZ))
-    print(Vector(minX, minY, minZ))
-    print(Vector(maxX, MaxY, maxZ))
 end)
 
 -- Retrives information about player ragdolling. This is so we can display the name tag even if the player is ragdolled.
@@ -650,30 +653,32 @@ hook.Add("PostDrawTranslucentRenderables", "playfight_debug_hull_draw_id", funct
     -- NAME TAGS
     for k, ply in next, player.GetAll() do
         if ply ~= LocalPlayer() and ply:Alive() and ((ply:GetObserverMode() ~= OBS_MODE_ROAMING and ply:GetObserverMode() ~= OBS_MODE_CHASE ) or ply.israg == true) and table.HasValue(playfight_client_menu_list, ply:SteamID()) then
-            local drawHeight = 85
+            if !ply:IsDormant() or ply.israg == true then
+                local drawHeight = 85
 
-            if ( ply:LookupBone("ValveBiped.Bip01_Head1") ~= nil) then
-                drawHeight = (ply:GetBonePosition(ply:LookupBone("ValveBiped.Bip01_Head1")).z - ply:GetPos().z) + 15
+                if ( ply:LookupBone("ValveBiped.Bip01_Head1") ~= nil) then
+                    drawHeight = (ply:GetBonePosition(ply:LookupBone("ValveBiped.Bip01_Head1")).z - ply:GetPos().z) + 15
+                end
+
+                if ply.israg then
+                    drawHeight = 50
+                end
+
+                local offset = Vector( 0, 0, drawHeight )
+                local ang = LocalPlayer():EyeAngles()
+                local pos = ply:GetPos() + offset + ang:Up()
+            
+                if ply.israg then
+                    pos = Vector(ply.ragX, ply.ragY, ply.ragZ) + offset + ang:Up()
+                end
+
+                ang:RotateAroundAxis( ang:Forward(), 90 )
+                ang:RotateAroundAxis( ang:Right(), 90 )
+            
+                cam.Start3D2D( pos, Angle( 0, ang.y, 90 ), 0.25 )
+                    draw.SimpleTextOutlined(ply:GetName().." ("..ply:Health().."%)", "DermaLargeScaled", 2, 2, Color( 255, 255, 255, ply.playfight_client_super_flash ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color( 0, 0, 0, ply.playfight_client_super_flash ))
+                cam.End3D2D()
             end
-
-            if ply.israg then
-                drawHeight = 50
-            end
-
-            local offset = Vector( 0, 0, drawHeight )
-            local ang = LocalPlayer():EyeAngles()
-            local pos = ply:GetPos() + offset + ang:Up()
-        
-            if ply.israg then
-                pos = Vector(ply.ragX, ply.ragY, ply.ragZ) + offset + ang:Up()
-            end
-
-            ang:RotateAroundAxis( ang:Forward(), 90 )
-            ang:RotateAroundAxis( ang:Right(), 90 )
-        
-            cam.Start3D2D( pos, Angle( 0, ang.y, 90 ), 0.25 )
-                draw.SimpleTextOutlined(ply:GetName().." ("..ply:Health().."%)", "DermaLargeScaled", 2, 2, Color( 255, 255, 255, ply.playfight_client_super_flash ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color( 0, 0, 0, ply.playfight_client_super_flash ))
-            cam.End3D2D()
         end
     end
 end)
@@ -849,8 +854,6 @@ end)
 
 net.Receive("playfight_client_graceperiod_count", function( len )
     local count = net.ReadFloat()
-    
-    print("grace count down")
 
     currentGraceCount = count
 
@@ -872,26 +875,38 @@ net.Receive("playfight_client_player_menu", function( len )
     end
 end)
 
-net.Receive("playfight_client_play_music", function(len)
-    sound.PlayFile("sound/grand_march.wav", "noplay", function( station, errCode, errStr )
-        if IsValid( station ) then
-            if playfight_client_current_song_channel == nil then
-                station:Play()
-                
-                playfight_client_current_song_channel = station
+function playSong(filename, time)
+    local returnStation = nil
 
-                if !playfight_client_song_muted then
-                    station:SetVolume(playfight_client_song_volume)
-                else
-                    station:SetVolume(0)
-                end
+    sound.PlayFile(filename, "noblock", function( station, errCode, errStr )
+        if IsValid( station ) then
+            station:EnableLooping(true)
+            station:Play()
+            
+            playfight_client_current_song_channel = station
+
+            if !playfight_client_song_muted then
+                station:SetVolume(playfight_client_song_volume)
+            else
+                station:SetVolume(0)
             end
+
+            if time ~= nil then
+                station:SetTime(time)
+            end
+
+            returnStation = station
         else
             print( "Error playing song!", errCode, errStr )
         end
     end)
-end)
 
+    return returnStation
+end
+
+net.Receive("playfight_client_play_music", function(len)
+    playSong("sound/grand_march.wav")
+end)
 
 net.Receive("playfight_client_killfeed", function( len )
     local attacker = net.ReadString()
@@ -901,4 +916,20 @@ net.Receive("playfight_client_killfeed", function( len )
     local victimTeam = net.ReadFloat()
 
     GAMEMODE:AddDeathNotice(attacker, attackerTeam, inflictor, victim, victimTeam)
+end)
+
+
+-- Continue playing song when map is cleaned ( a bit hacky but works )
+local currentSongTime = 0
+local currentSong = ""
+
+hook.Add("PreCleanupMap", "playfight_reset_music_on_cleanup_pre", function()
+    if playfight_client_current_song_channel ~= nil then
+        currentSongTime = playfight_client_current_song_channel:GetTime()
+        currentSong = playfight_client_current_song_channel:GetFileName()
+    end
+end)
+
+hook.Add("PostCleanupMap", "playfight_reset_music_on_cleanup_post", function()
+    local station = playSong("sound/grand_march.wav", currentSongTime)
 end)

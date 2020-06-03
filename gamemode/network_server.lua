@@ -127,8 +127,6 @@ net.Receive("playfight_client_request_kills", function(len, ply)
 
 
         for k, v in pairs(playfight_kills_list) do
-            print(k)
-            print(v)
             if k:SteamID() ~= nil and v ~= nil then
                 net.WriteString(k:SteamID())
                 net.WriteInt(v, 32)
