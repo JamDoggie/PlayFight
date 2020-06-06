@@ -53,6 +53,7 @@ local currentHealthLerp = 0
 killicon.Add("prop_ragdoll", "icons/ragdollicon", Color( 255, 80, 0, 255 ))
 killicon.Add("hitscan_crossbow", "icons/crossbowicon", Color( 255, 80, 0, 255 ))
 
+
 surface.CreateFont( "PlayfightState", {
 	font = "Tahoma",
 	extended = false,
@@ -425,10 +426,10 @@ hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
 
     surface.SetFont("DermaLargeScaled")
 
-    --set padding
+    -- Set padding
     local padding = math.Round(10 * ScrS())
 
-    --healthbar
+    -- Healthbar
     local dispWidth = math.Round(80 * ScrS())
     local dispHeight = math.Round(42 * ScrS())
 
@@ -441,6 +442,10 @@ hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
         draw.RoundedBox(0, padding, ScrH() - padding - healthHeight - dispHeight, healthWidth, healthHeight, Color(86, 86, 86, 215))
 
         local plyHealth = LocalPlayer():Health()
+
+        if LocalPlayer().spectatedPlayer ~= nil and LocalPlayer().spectatedPlayer ~= "" then
+            plyHealth = playfight_client_spectatedHealth
+        end
 
         if plyHealth < 0 then
             plyHealth = 0
@@ -458,11 +463,11 @@ hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
 
         draw.DrawText("Health/Super", "PlayfightState", padding + (healthWidth/2 - labelW/2), ScrH() - padding - dispHeight - (healthHeight/2 + labelH/2), Color(255,255,255))
 
-        --health bar
+        -- Health bar
         local barWidth = math.Round(7 * ScrS())
         local barHeight = (dispHeight + healthHeight)
 
-        currentHealthLerp = Lerp(0.1 * (FrameTime() * 200), currentHealthLerp, ply:Health())
+        currentHealthLerp = Lerp(0.1 * (FrameTime() * 200), currentHealthLerp, plyHealth)
         local lerpHealth = currentHealthLerp
 
         draw.RoundedBox(0, padding + dispWidth, ScrH() - padding - barHeight, barWidth, barHeight, Color(46, 46, 46, 215))
@@ -492,13 +497,21 @@ hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
             end
         end
         -- DRAW SUPER BAR
+        local currentSuper = GetGlobalInt("__playGgfiHti_SUPErCLient_"..LocalPlayer():Nick())
 
-        currentSuperLerp = Lerp(0.05 * (FrameTime() * 200), currentSuperLerp, GetGlobalInt("__playGgfiHti_SUPErCLient_"..LocalPlayer():Nick()))
+        local currentSuperFlash = LocalPlayer().playfight_client_super_flash
+
+        if LocalPlayer().spectatedPlayer ~= nil and LocalPlayer().spectatedPlayer ~= "" then
+            currentSuper = playfight_client_spectatedSuper
+            currentSuperFlash = 0 
+        end
+
+        currentSuperLerp = Lerp(0.05 * (FrameTime() * 200), currentSuperLerp, currentSuper)
         super = currentSuperLerp
 
         draw.RoundedBox(0, padding + dispWidth + barWidth, ScrH() - padding - barHeight, barWidth, barHeight, Color(46, 46, 46, 215))
     
-        draw.RoundedBox(0, padding + dispWidth + barWidth, ScrH() - padding - barHeight + (barHeight - barHeight * (super/100)), barWidth, barHeight * (super/100), Color(157, 80, 80, LocalPlayer().playfight_client_super_flash))
+        draw.RoundedBox(0, padding + dispWidth + barWidth, ScrH() - padding - barHeight + (barHeight - barHeight * (super/100)), barWidth, barHeight * (super/100), Color(157, 80, 80, currentSuperFlashh))
 
 
         surface.SetFont("DermaLargeScaled")
@@ -578,7 +591,12 @@ local posX, posY, posZ, minX, minY, minZ, maxX, maxY, maxZ
 
 local isValid
 
+local showTrace
+
 net.Receive("playfight_client_showlastpos", function()
+
+    showTrace = net.ReadBool()
+
     posX = net.ReadFloat()
     posY = net.ReadFloat()
     posZ = net.ReadFloat()
@@ -614,15 +632,18 @@ net.Receive("playfight_client_ragdoll", function()
     end
 end)
 
+
 hook.Add("PostDrawTranslucentRenderables", "playfight_debug_hull_draw_id", function()
     -- debug box
     local clr = Color(255, 255, 255)
 
-    if (!isValid) then
+    if !isValid then
         clr = Color(255, 20, 20)
     end
 
-    render.DrawWireframeBox( Vector(posX, posY, posZ), Angle( 0, 0, 0 ), Vector(minX, minY, minZ), Vector(maxX, maxY, maxZ), clr, true )
+    if showTrace then
+        render.DrawWireframeBox( Vector(posX, posY, posZ), Angle( 0, 0, 0 ), Vector(minX, minY, minZ), Vector(maxX, maxY, maxZ), clr, true )
+    end
 
     local ang = LocalPlayer():EyeAngles()
 

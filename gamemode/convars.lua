@@ -27,6 +27,18 @@ concommand.Add("pf_endgame", function( ply, cmd, args )
     end
 end)
 
+-- Debug command, shows the hulltrace used to test if the place the player's in is valid to spawn in when the player gets out of ragdoll
+-- When the hulltrace collides with nothing, that means that the position is safe and it is stored as a lastpos variable.
+concommand.Add("pf_drawlastvalidpos", function( ply, cmd, args )
+    if GetConVar("sv_cheats"):GetBool() and #args > 0 then
+        if args[1] == "0" then
+            ply.showlastpos = 0
+        elseif args[1] == "1" then
+            ply.showlastpos = 1
+        end
+    end
+end)
+
 -- Sets the current round. The internal variable starts at 0, but the display starts at 1 so setting it to 1 will set the ingame visual to 2 etc.
 concommand.Add("pf_setround", function( ply, cmd, args )
     -- Set the current round

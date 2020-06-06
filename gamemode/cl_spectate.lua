@@ -1,5 +1,8 @@
 playfight_client_locally_spectated_player = playfight_client_locally_spectated_player or nil
 
+playfight_client_spectatedHealth = playfight_client_spectatedHealth or 0
+playfight_client_spectatedSuper = playfight_client_spectatedSuper or 0
+
 if LocalPlayer().spectatedPlayer == nil then
     LocalPlayer().spectatedPlayer = ""
 end
@@ -26,9 +29,20 @@ net.Receive("playfight_client_spectate_player_name", function( len )
     LocalPlayer().spectatedPlayer = spectatedPlayer
 end)
 
+net.Receive("playfight_client_spectate_player_healthsuper", function()
+    playfight_client_spectatedHealth = net.ReadFloat()
+    playfight_client_spectatedSuper = net.ReadFloat()
+end)
+
 hook.Add("HUDPaint", "playfight_paint_spectate_text", function()
     if LocalPlayer().isSpectating == true then
+        
         local spectateText = "You are spectating"
+
+        if LocalPlayer().spectatedPlayer ~= nil and LocalPlayer().spectatedPlayer ~= "" then
+            spectateText = "Spectating "..LocalPlayer().spectatedPlayer
+        end
+
         local spectateInfoText = "Press space to toggle between spectating world and players, left click to cycle between players."
 
         surface.SetFont("DermaLargeScaled")

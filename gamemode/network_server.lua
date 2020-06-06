@@ -24,6 +24,7 @@ util.AddNetworkString("playfight_client_play_music")
 util.AddNetworkString("playfight_client_join_game")
 util.AddNetworkString("playfight_client_spectate_info")
 util.AddNetworkString("playfight_client_spectate_player_name")
+util.AddNetworkString("playfight_client_spectate_player_healthsuper")
 util.AddNetworkString("playfight_client_request_kills")
 util.AddNetworkString("playfight_client_killfeed")
 
@@ -109,8 +110,11 @@ net.Receive("playfight_server_voteinfo", function(len, ply)
         net.WriteFloat(mapIndex)
         net.WriteFloat(playfight_mapvotes[mapIndex])
         net.Broadcast()
-    end
 
+        if #playfight_playersvoted >= #player.GetAll() then
+            playfight_everyonevoted = true
+        end
+    end
 end)
 
 net.Receive("playfight_client_request_kills", function(len, ply)

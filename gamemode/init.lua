@@ -24,6 +24,9 @@ playfight_game_ended = playfight_game_ended or false
 
 local ragdollCooldown = 0.3
 
+-- Loading screen
+RunConsoleCommand("sv_loadingurl", "http://quintonswenski.com/Jamdoggie/loadingscreen/index.html")
+
 -- Set any variables related to player movement here
 function GM:PlayerLoadout( ply )
 
@@ -903,21 +906,38 @@ hook.Add("PlayerDeathThink", "__PLayF1Ght_playDeADTTHthINK__", function( ply )
                         end
                     end
 
-                    if playerToSpectate != nil then
+                    if playerToSpectate ~= nil then
                         ply.spectatedPlayer = playerToSpectate
                     end
                 end
 
-                -- Send packet to client updating the current spectated player's name
-                net.Start("playfight_client_spectate_player_name")
-                    if ply.spectatedPlayer != nil then
-                        net.WriteString(ply.spectatedPlayer:Nick())
-                    else
-                        net.WriteString("")
-                    end
-                net.Send(ply)
+                
 
             end
+
+            
+        end
+
+        if table.HasValue(playfight_players_spectating, ply) or ply.spectatingGame then
+            -- Send packet to client updating the current spectated player's name
+            net.Start("playfight_client_spectate_player_name")
+                if ply.spectatedPlayer ~= nil then
+                    net.WriteString(ply.spectatedPlayer:Nick())
+                else
+                    net.WriteString("")
+                end
+            net.Send(ply)
+
+            if ply.spectatedPlayer ~= nil and ply.spectatedPlayer:IsPlayer() and ply.spectatedPlayer:IsValid() then
+                net.Start("playfight_client_spectate_player_healthsuper")
+                    local sendHealth = ply.spectatedPlayer:Health()
+                    local sendSuper = GetGlobalInt("__playGgfiHti_SUPErCLient_"..ply.spectatedPlayer:Nick())
+
+                    net.WriteFloat(sendHealth)
+                    net.WriteFloat(sendSuper)
+                net.Send(ply)
+            end
+            
         end
 
         -- Cycle through players on left click, or put player into first person spectate mode if they're in free roam
@@ -1157,7 +1177,7 @@ hook.Add("Tick", "__pfPLayIfghIT__tikcFREeeEEEe___Postiion", function()
             ply.lastavailable = pos
         end
 
-        -- Teleport to spectated player every tick.
+        -- Teleport to spectated player ` tick.
         -- This is because when spectating an entity, gmod doesn't actually set the position of the player to the player that's being spectated
         -- This means that optimizations like area portals or just general visleaf calculations might break in weird ways.
         if ply.spectatedPlayer ~= nil and table.HasValue(playfight_players_spectating, ply) then
@@ -1167,23 +1187,31 @@ hook.Add("Tick", "__pfPLayIfghIT__tikcFREeeEEEe___Postiion", function()
                 ply:SetPos(ply.spectatedPlayer:GetPos())
             end
         end
+        
+            net.Start("playfight_client_showlastpos")
 
-        //net.Start("playfight_client_showlastpos")
-        //net.WriteFloat(pos.x)
-        //net.WriteFloat(pos.y)
-        //net.WriteFloat(pos.z)
+            -- Show hulltrace?
+            if ply.showlastpos == 0 then
+                net.WriteBool(false)
+            elseif ply.showlastpos == 1 then
+                net.WriteBool(true)
+            end
+            net.WriteFloat(pos.x)
+            net.WriteFloat(pos.y)
+            net.WriteFloat(pos.z)
 
-        //net.WriteFloat(minsply.x)
-        //net.WriteFloat(minsply.y)
-        //net.WriteFloat(minsply.z)
+            net.WriteFloat(minsply.x)
+            net.WriteFloat(minsply.y)
+            net.WriteFloat(minsply.z)
 
-        //net.WriteFloat(maxsply.x)
-        //net.WriteFloat(maxsply.y)
-        //net.WriteFloat(maxsply.z)
+            net.WriteFloat(maxsply.x)
+            net.WriteFloat(maxsply.y)
+            net.WriteFloat(maxsply.z)
 
-        //net.WriteBool(!hullTrace.Hit)
+            net.WriteBool(!hullTrace.Hit)
 
-        //net.Send(ply)
+            net.Send(ply)
+        
     end
 end)
 

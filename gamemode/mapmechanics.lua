@@ -395,7 +395,6 @@ if ( globalTable ~= nil ) then
             timer.Create("__playfightRumblequestionnewRoundDRAW__", 3, 1, function()
                 
                 -- Clean up map
-                playfight_clearspectators()
 
                 net.Start("playfight_round_winner")
                 net.WriteString("")
@@ -455,6 +454,8 @@ if ( globalTable ~= nil ) then
                         end
                     end
                 end
+
+                playfight_clearspectators()
 
                 SetGlobalInt("__ident1fier____Warmup_time_playfight__", 300)
                 timer.UnPause("__ident1fier____RoUnd_playfight____timerrr___")
@@ -563,7 +564,7 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                     playfight_isSuddenDeath = false
 
                     -- Clean up map
-                    playfight_clearspectators()
+                    
 
                     net.Start("playfight_round_winner")
                     net.WriteString("")
@@ -618,6 +619,8 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                         end
                     end
 
+                    playfight_clearspectators()
+
                     SetGlobalInt("__ident1fier____Warmup_time_playfight__", 300)
                     
                     -- Add one to the current round
@@ -669,6 +672,23 @@ hook.Add("PlayerDeath", "playfight_hook_player_death_map_mechanics", function(vi
     end
 end)
 
+local function switchmaps()
+    local winningMaps = {}
+    local maxVotes = max(playfight_mapvotes)
+
+    for i = 1, #playfight_mapvotes do
+        if playfight_mapvotes[i] == maxVotes then
+            table.insert(winningMaps, playfight_mapsinstalled[i])
+        end
+    end
+
+    local mapToChange = math.random(1, #winningMaps)
+
+    print("map to change: " .. mapToChange)
+
+    RunConsoleCommand( "changelevel", winningMaps[mapToChange] )
+end
+
 function playfight_end_game()
     -- End game
     local playerWin = 0
@@ -708,28 +728,20 @@ function playfight_end_game()
     net.WriteString("Game end, " .. playerName)
     net.Broadcast()
 
-    SetGlobalInt("__ident1fier____Warmup_time_playfight__", 15)
+    SetGlobalInt("__ident1fier____Warmup_time_playfight__", 30)
 
     timer.Create("__PlayFight_SwitchMap_Timer__", 1, 0, function()
-        SetGlobalInt("__ident1fier____Warmup_time_playfight__", GetGlobalInt("__ident1fier____Warmup_time_playfight__", 15) - 1)
+        SetGlobalInt("__ident1fier____Warmup_time_playfight__", GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) - 1)
+
+        if playfight_everyonevoted ~= nil and playfight_everyonevoted == true then
+            switchmaps()
+        end
     end)
 
-    timer.Create("__PlayFight_SwitchMap__", 15, 1, function()
-        local winningMaps = {}
-        local maxVotes = max(playfight_mapvotes)
-
-        for i = 1, #playfight_mapvotes do
-            if playfight_mapvotes[i] == maxVotes then
-                table.insert(winningMaps, playfight_mapsinstalled[i])
-            end
-        end
-
-        local mapToChange = math.random(1, #winningMaps)
-
-        print("map to change: " .. mapToChange)
-
-        RunConsoleCommand( "changelevel", winningMaps[mapToChange] )
+    timer.Create("__PlayFight_SwitchMap__", 30, 1, function()
+        switchmaps()
     end)
 
     playfight_game_ended = true
 end
+
