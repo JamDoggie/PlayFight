@@ -15,7 +15,7 @@ util.AddNetworkString("playfight_client_voteinfo")
 util.AddNetworkString("playfight_client_playsound")
 util.AddNetworkString("playfight_client_showlastpos")
 util.AddNetworkString("playfight_client_supercharging")
-util.AddNetworkString("playfight_client_ragdoll")
+
 util.AddNetworkString("playfight_client_screenmessage")
 util.AddNetworkString("playfight_client_playerdisconnect")
 util.AddNetworkString("playfight_client_graceperiod_count")
@@ -28,12 +28,31 @@ util.AddNetworkString("playfight_client_spectate_player_healthsuper")
 util.AddNetworkString("playfight_client_request_kills")
 util.AddNetworkString("playfight_client_killfeed")
 
+-- Gamemode voting
+util.AddNetworkString("playfight_gamemode_vote") -- Sent to clients to tell the clients to open the gamemode voting menu
+util.AddNetworkString("playfight_gamemode_client_vote_info") -- Sent by clients to tell the server what gamemode they voted for
+util.AddNetworkString("playfight_enter_menu") -- Sent by server to tell the client to open the player model selector
+
+-- Teams
+util.AddNetworkString("playfight_open_team_selection_screen") -- Sent by server to tell client to open the team selection screen
+util.AddNetworkString("playfight_client_team_vote") -- Sent by client to tell the server what team the client is voting for
+
+-- Scoreboard game state
+util.AddNetworkString("playfight_client_score_gamestate")
+util.AddNetworkString("playfight_client_team_win_update")
+
+-- Death freeze cam(sending a true value shows and initializes it, sending a false value resets and hides it)
+util.AddNetworkString("playfight_client_deathcam_html")
+
+-- Fix for smooth nametags, tells the client the id of the ragdoll instead of just teleporting the nametag to the ragdoll
+util.AddNetworkString("playfight_client_ragdoll")
+
 playfight_server_menu_info = playfight_server_menu_info or {}
 
 -- When the client hits the play or spectate button, send the player into the game.
 net.Receive("playfight_player_start_play", function( len, ply )
 
-    if ply:IsValid() and ply:IsPlayer() and table.HasValue(playfight_server_menu_info, ply) then
+    if ply:IsValid() and ply:IsPlayer() and table.HasValue(playfight_server_menu_info, ply) and !playfight_gamemode_voting then
         table.RemoveByValue(playfight_server_menu_info, ply)
 
         if GetGlobalBool("__ident1fier____Warmup_playfight__") == true then

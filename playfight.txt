@@ -4,7 +4,7 @@
 	"title"		"Play Fight"
 	"maps"		"^pf_"
 	"menusystem"	"1"
-	"workshopid"	"2017752343"
+	"workshopid"	"2258641929"
 
 	"settings"
 	{
@@ -42,6 +42,46 @@
 			"help"		"Ends the game on a draw and changes level if one or less people are connected to the server."
 			"type"		"CheckBox"
 			"default"	"1"
+		}
+		
+		5
+		{
+			
+			"name"		"pf_admins_vote_gamemode"
+			"text"		"Admins vote on gamemode settings on game start"
+			"help"		"Makes a screen show up that allows admins to vote on the gamemode. They can also vote for a server wide gamemode vote from this screen."
+			"type"		"CheckBox"
+			"default"	"1"
+		}
+		
+		6
+		{
+			
+			"name"		"pf_gamemode"
+			"text"		"The gamemode to be set if admin voting is disabled. 0 = FFA, 1 = Teams"
+			"help"		"If voting is disabled, the game will auto go into this gamemode. 0 is normal free for all mode, first to an amount of wins. 1 is teams mode, first team out of the two teams to get the amount of wins."
+			"type"		"Numeric"
+			"default"	"0"
+		}
+		
+		7
+		{
+			
+			"name"		"pf_team_size"
+			"text"		"Max players per team(-1 for no limit)"
+			"help"		"Maximum amount of players that can be on each team"
+			"type"		"Numeric"
+			"default"	"-1"
+		}
+
+		8
+		{
+			
+			"name"		"pf_friendly_fire"
+			"text"		"Enable Friendly Fire"
+			"help"		"Whether or not team damage is enabled"
+			"type"		"CheckBox"
+			"default"	"0"
 		}
 	}
 

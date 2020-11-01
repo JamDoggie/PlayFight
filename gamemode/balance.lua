@@ -5,11 +5,11 @@ function GM:ScalePlayerDamage(ply, hitgroup, dmg)
         print (dmg:GetAttacker():GetActiveWeapon())
 
         if dmg:GetAttacker():GetActiveWeapon():GetClass() == "weapon_357" then
-                dmg:ScaleDamage(0.50)
+                dmg:ScaleDamage(0.7)
         end
 
         if dmg:GetAttacker():GetActiveWeapon():GetClass() == "weapon_shotgun" then
-                dmg:ScaleDamage(1.0)
+                dmg:ScaleDamage(1)
         end
     end
 end

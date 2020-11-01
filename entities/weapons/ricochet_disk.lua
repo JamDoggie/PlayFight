@@ -57,6 +57,11 @@ function SWEP:Equip(newOwner)
 
     self.Weapon:SendWeaponAnim(ACT_SLAM_THROW_ND_DRAW)
 
+    timer.Simple(0.4, function()
+        self.Weapon:SendWeaponAnim(ACT_SLAM_THROW_ND_IDLE)
+        print("idle")
+    end)
+
     net.Start("playfight_client_playsound")
     net.WriteString("gunpickup2.wav")
     net.Send(self:GetOwner())
@@ -75,7 +80,7 @@ function SWEP:PrimaryAttack()
 
         ply:SetAnimation(PLAYER_ATTACK1)
 
-        timer.Simple(0.34, function()
+        timer.Simple(0.12, function()
             if self.Weapon ~= nil and self.Owner:IsValid() and self.Owner:Alive() then
                 self.Weapon:SendWeaponAnim(ACT_SLAM_THROW_THROW_ND2)
 
@@ -126,9 +131,9 @@ function SWEP:PrimaryAttack()
                             disk:EmitSound("shatter.wav")
                         end
 
-                        local diskDamage = 20
+                        local diskDamage = 50
 
-                        if data.HitEntity:IsValid() and data.HitEntity:IsPlayer() and data.HitEntity ~= disk.owner then
+                        if data.HitEntity:IsValid() and data.HitEntity:IsPlayer() and data.HitEntity ~= disk.owner and playfight_player_can_hurt(disk.owner, data.HitEntity) then
                             disk:EmitSound("decap.wav")
 
                             local plyr = data.HitEntity
@@ -164,6 +169,8 @@ function SWEP:PrimaryAttack()
                     if self.Weapon ~= nil then
                         self.Weapon:SendWeaponAnim(ACT_SLAM_THROW_ND_DRAW)
                         timer.Simple(0.34, function()
+                            
+                            print("idle")
                             self.canThrow = true
                         end)
                     end

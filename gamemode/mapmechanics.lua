@@ -184,16 +184,19 @@ timer.Create("___PlayFight__weaponSpAwn__", 0.1, 0, function()
             local posChoose = math.random(1, #wepsTable)
             local wepChoose = math.random(1, #weaponWeightTable)
 
-            local wepSpawn = nil
+            if #wepsTable > 0 then
+                local wepSpawn = nil
 
-            wepSpawn = ents.Create(weaponWeightTable[wepChoose])
+                wepSpawn = ents.Create(weaponWeightTable[wepChoose])
 
-            wepSpawn:SetPos(wepsTable[posChoose])
+                wepSpawn:SetPos(wepsTable[posChoose])
 
-            wepSpawn:Spawn()
-            wepSpawn:Activate()
+                wepSpawn:Spawn()
+                wepSpawn:Activate()
 
-            currentWeaponDelay = weaponDelay
+                currentWeaponDelay = weaponDelay
+
+            end
         end
     end
 
@@ -220,7 +223,13 @@ if ( globalTable ~= nil ) then
             end
 
             -- If there are enough players and the timer is not at 0, count down
-            if ( player.GetCount() - playMenus > 1 and GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) >= 0) then
+            local shouldCountDown = player.GetCount() - playMenus > 1
+            if playfight_current_gamemode == 1 then
+                shouldCountDown = team.NumPlayers(0) > 0 and team.NumPlayers(1) > 0
+            end
+
+            if ( shouldCountDown and GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) >= 0) then
+            //if (GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) >= 0) then
                 SetGlobalInt("__ident1fier____Warmup_time_playfight__", GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) - 1)
                 if (GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) <= 0) then
                     
@@ -244,6 +253,10 @@ if ( globalTable ~= nil ) then
 
                         for k,v in next, player.GetAll() do
                             v:Freeze(false)
+
+                            SetSuper(v, 0)
+                            v.cansuper = 0
+                            v.useenergy = 0
 
                             if v.spectatingGame ~= true then
                                 v.spectatedPlayer = nil
@@ -419,6 +432,10 @@ if ( globalTable ~= nil ) then
                 for k,v in next, player.GetAll() do
                     v:Freeze(false)
 
+                    SetSuper(v, 0)
+                    v.cansuper = 0
+                    v.useenergy = 0
+
                     if v.spectatingGame ~= true then
                         v.spectatedPlayer = nil
                         v.ragfall = nil
@@ -468,6 +485,16 @@ end
 
     -- We here at [redacted]™ take pride in our excellent documentation and readability for variable names.
     hook.Add("PlayerSpawn", "__p__la_yerI__niti__Spa__NW__Ns____nns___", function( ply )
+        net.Start("playfight_client_team_win_update")
+        net.WriteInt(0, 18) -- Team ID
+        net.WriteInt(team.GetScore(0), 18) -- Team Wins
+        net.Broadcast()
+
+        net.Start("playfight_client_team_win_update")
+        net.WriteInt(1, 18) -- Team ID
+        net.WriteInt(team.GetScore(1), 18) -- Team Wins
+        net.Broadcast()
+
         if ply:IsValid() then
             if ( ply.isSpawnedd == nil or ply.isSpawnedd == NULL) then
                 if !ply.shouldSpec then
@@ -500,7 +527,6 @@ end
                             end) 
                         end
                     end)
-                    
                 end
             end
         end
@@ -509,10 +535,14 @@ end
 
 
 
--- If there's only one player alive, that player wins.
+-- If there's only one player/team alive, that player/team wins.
 hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inflictor, attacker )
+
+
     if GetGlobalBool("__ident1fier____Warmup_playfight__") == false then
         
+        
+
         local alivePly = {}
 
         for k,v in next, player.GetAll() do
@@ -524,9 +554,38 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
             end
         end
 
-        if (#alivePly == 1 ) then
+        local aliveTeams = 0
+        local winnerTeam = -1;
+
+        for k, v in next, team.GetPlayers(0) do
+            if v:Alive() then
+                aliveTeams = aliveTeams + 1
+                winnerTeam = 0
+                break
+            end
+        end
+
+        for k, v in next, team.GetPlayers(1) do
+            if v:Alive() then
+                aliveTeams = aliveTeams + 1
+                winnerTeam = 1
+                break
+            end
+        end
+
+        if (playfight_current_gamemode == 0 and #alivePly == 1) or (playfight_current_gamemode == 1 and aliveTeams == 1) then
             net.Start("playfight_round_winner")
-            net.WriteString(alivePly[1])
+            if playfight_current_gamemode == 0 then
+                net.WriteString(alivePly[1])
+            elseif playfight_current_gamemode == 1 then
+                net.WriteString(team.GetName(winnerTeam))
+            end
+
+            -- Increment team score
+            if playfight_current_gamemode == 1 then
+                team.AddScore(winnerTeam, 1)
+            end
+
             net.Broadcast()
             for k,v in next, player.GetAll() do
                 v:Freeze(true)
@@ -590,6 +649,10 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                     for k,v in next, player.GetAll() do
                         v:Freeze(false)
 
+                        SetSuper(v, 0)
+                        v.cansuper = 0
+                        v.useenergy = 0
+
                         if v.spectatingGame ~= true then
                             v.spectatedPlayer = nil
                             v.ragfall = nil
@@ -632,43 +695,10 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                     net.Broadcast()
                 else
                     playfight_end_game()
+                    print("game end")
                 end
             end)
         end
-    end
-end)
-
-hook.Add("PlayerDeath", "playfight_hook_player_death_map_mechanics", function(victim, inflictor, attacker)
-    if attacker ~= nil and attacker:IsPlayer() and attacker ~= victim and GetGlobalBool("__ident1fier____Warmup_playfight__") == false then
-        if playfight_kills_list[attacker] == nil then
-            playfight_kills_list[attacker] = 1
-        else
-            playfight_kills_list[attacker] = playfight_kills_list[attacker] + 1
-        end
-
-        -- Send to clients
-        net.Start("playfight_send_kills")
-        
-        local killsLength = 0
-
-        for k, v in pairs(playfight_kills_list) do
-            killsLength = killsLength + 1
-        end
-
-        net.WriteInt(killsLength, 15)
-
-
-        for k, v in pairs(playfight_kills_list) do
-            if k:SteamID() ~= nil and v ~= nil then
-                net.WriteString(k:SteamID())
-                net.WriteInt(v, 32)
-            else
-                net.WriteString("")
-                net.WriteInt(0, 32)
-            end
-        end
-
-        net.Broadcast()
     end
 end)
 
@@ -713,6 +743,13 @@ function playfight_end_game()
         PlayfightSendTabInfo(ply)
     end
 
+    -- Get team with most wins
+    local winningTeam = 0
+
+    if team.GetScore(1) > team.GetScore(0) then
+        winningTeam = 1 
+    end
+
     net.Start("playfight_mapinfo")
     net.WriteFloat(#playfight_mapsinstalled)
 
@@ -725,7 +762,7 @@ function playfight_end_game()
 
 
     net.Start("playfight_round_winner")
-    net.WriteString("Game end, " .. playerName)
+    net.WriteString("Game end, " .. team.GetName(winningTeam))
     net.Broadcast()
 
     SetGlobalInt("__ident1fier____Warmup_time_playfight__", 30)

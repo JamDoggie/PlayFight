@@ -86,15 +86,16 @@ function SWEP:PrimaryAttack()
                 ent:SetAngles( ang )
                 ent:Spawn()
                 
-                --for getting super when damaging
+                -- For getting super when damaging
                 ent.ownply = ply
 
                 local phys = ent:GetPhysicsObject()
+
                 if ( !IsValid( phys ) ) then ent:Remove() return end
 
                 local velocity = self.Owner:GetAimVector()
                 velocity = Vector(velocity.x * 2500, velocity.y * 2500, velocity.z * 2500)
-                print("0 vel")
+
                 phys:SetVelocity(velocity)
                 
                 --remove the crowbar after 8 seconds
@@ -105,14 +106,14 @@ function SWEP:PrimaryAttack()
                 end)
 
                 --remove the weapon from the player so we get the effect it was thrown
-                self:Remove()
+                self.Owner:StripWeapons()
 
-                globalEnt = ent
+                
             end
         end)
 
         self:GetOwner():LagCompensation(false)
-
+        globalEnt = ent
         self.canThrow = false
     end
 end
@@ -124,8 +125,7 @@ end
 function SWEP:Tick()
     
 end
-
-if CLIENT then
+/*if CLIENT then
     hook.Add("PreDrawHalos", "__PlayFighHt__Halo_DrAw__", function()
         if globalEnt ~= nil then
 
@@ -138,7 +138,7 @@ if CLIENT then
             //print("bruh")
         end
     end)
-end
+end*/
 
 --
 -- Deploy - Allow lastinv

@@ -46,7 +46,9 @@ function SWEP:Initialize()
 end
 
 function SWEP:Equip(newOwner)
-    self.canUse = true
+    if self.canUse == false then
+        newOwner:StripWeapons()
+    end
 
     util.PrecacheModel("models/weapons/c_crossbow.mdl")
     util.PrecacheModel("models/weapons/w_crossbow.mdl")
@@ -88,7 +90,7 @@ function SWEP:PrimaryAttack()
 
         -- Hurt player and ragdoll them
         if SERVER then
-            if hitPly ~= nil and hitPly:IsPlayer() then
+            if hitPly ~= nil and hitPly:IsPlayer() and playfight_player_can_hurt(ply, hitPly) then
                 local direction = ply:EyeAngles():Forward()
 
                 

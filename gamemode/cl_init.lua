@@ -1,6 +1,8 @@
 include( "shared.lua" )
 include( "cl_scoreboard.lua" )
 include( "cl_spectate.lua" )
+include( "cl_gamemodes.lua" )
+include( "cl_deathcam.lua" )
 
 --convienience function for screen scaling
 local function ScrS()
@@ -38,6 +40,7 @@ playfight_damage_counter_text = ""
 
 playfight_current_message = ""
 
+playfight_client_selectingteam = false
 
 local currentGraceCount = 0
 
@@ -108,12 +111,9 @@ surface.CreateFont( "ScoreboardStatsPlayfight", {
 	outline = false
 } )
 
-playfight_client_stunposx = 0
-playfight_client_stunstring = ""
-
-local html = vgui.Create( "DHTML" )
+local html = html or vgui.Create( "DHTML" )
 html:Dock( FILL )
-html:SetAllowLua(true)
+
 
 html:AddFunction("playfight", "playgame", function()
     net.Start("playfight_player_start_play")
@@ -157,8 +157,12 @@ html:AddFunction("playfight", "setmusicmuted", function(muted)
     end
 end)
 
-html:AddFunction("playfight", "getmusicmuted", function()
-    return playfight_client_song_muted
+html:AddFunction("playfight", "voteGamemode", function(gamemode_id)
+    if type(gamemode_id) == "number" then
+        net.Start("playfight_gamemode_client_vote_info")
+        net.WriteInt(gamemode_id, 8)
+        net.SendToServer()
+    end
 end)
 
 html:AddFunction("playfight", "setmusicvolume", function(volume)
@@ -171,13 +175,31 @@ html:AddFunction("playfight", "setmusicvolume", function(volume)
     end
 end)
 
-html:OpenURL("http://quintonswenski.com/Jamdoggie/index.html")
+
+html:OpenURL("http://quintonswenski.com/Jamdoggie/vote_wait_screen/index.html")
 
 
+playfight_team_html = playfight_team_html or vgui.Create( "DHTML" )
+playfight_team_html:Dock( FILL )
+
+playfight_team_html:OpenURL("http://quintonswenski.com/Jamdoggie/team_select/index.html");
+
+playfight_team_html:AddFunction("playfight", "selectTeam", function(teamId)
+    if type(teamId) == "number" then
+        net.Start("playfight_client_team_vote")
+        net.WriteInt(teamId, 8)
+        net.SendToServer()
+    end
+end)
+playfight_team_html:SetVisible(false)
+playfight_team_html:SetSize(ScrW(), ScrH())
 
 function html:Paint()
     draw.RoundedBox(0, 0, 0, ScrW(), ScrH(), Color(0, 0, 0, 122))
 end
+
+playfight_client_stunposx = 0
+playfight_client_stunstring = ""
 
 -- Main menu
 
@@ -224,7 +246,7 @@ end
 
 playfight_playerchoose = vgui.Create("DPanelSelect")
 
-playfight_playerchoose:SetVisible( true )
+playfight_playerchoose:SetVisible( false )
 
 playfight_playerchoose:SetPos(ScrW() / 4, ScrH() / 15)
 
@@ -248,6 +270,8 @@ mdl:Dock(FILL)
 
 mdl:SetModel( "models/player/kleiner.mdl" )
 
+mdl:SetVisible( false )
+
 mdl:SetFOV( 36 )
 mdl:SetCamPos( Vector( 0, 0, 0 ) )
 mdl:SetDirectionalLight( BOX_RIGHT, Color( 255, 160, 80, 255 ) )
@@ -256,6 +280,8 @@ mdl:SetAmbientLight( Vector( -64, -64, -64 ) )
 mdl.Angles = Angle( 0, 0, 0 )
 mdl:SetLookAt( Vector( -100, 0, -22 ) )
 mdl.Entity:SetPos( Vector( -100, 0, -61 ) )
+
+
 
 -- For setting the playermodel
 local function SetPlayerModel(model)
@@ -290,6 +316,7 @@ for name, model in SortedPairs( player_manager.AllValidModels() ) do
 
     playfight_playerchoose:AddPanel( icon, { cl_playermodel = name } )
 
+    //print("IMAGE PATH: "..tostring(icon:GetIcon()))
 end
 
 function mdl:LayoutEntity( ent )
@@ -313,6 +340,48 @@ function playfight_playerchoose:OnActivePanelChanged( old, new )
 end
 
 
+net.Receive("playfight_enter_menu", function()
+    html:SetVisible(true)
+    mdl:SetVisible(true);
+    playfight_playerchoose:SetVisible(true);
+    playfight_client_selectingteam = false
+    html:OpenURL("http://quintonswenski.com/Jamdoggie/index.html");
+    playfight_team_html:SetVisible(false)
+    playfight_team_html:MoveToFront()
+    playfight_playerframe:MoveToFront()
+    playfight_playerchoose:MoveToFront()
+    playfight_scoreboard_html:MoveToFront()
+end)
+
+net.Receive("playfight_gamemode_vote", function()
+    local isVoting = net.ReadBool();
+
+    local adminVoting = net.ReadBool();
+
+    if adminVoting then
+        if isVoting then
+            html:OpenURL("http://quintonswenski.com/Jamdoggie/server_config/index.html");
+        else
+            html:OpenURL("http://quintonswenski.com/Jamdoggie/vote_wait_screen/index.html");
+        end
+    else
+        if isVoting then
+            html:OpenURL("http://quintonswenski.com/Jamdoggie/server_config_player/index.html");
+        else
+            html:OpenURL("http://quintonswenski.com/Jamdoggie/vote_wait_screen/index.html");
+        end
+    end
+
+end)
+
+html:MoveToFront()
+
+net.Receive("playfight_open_team_selection_screen", function()
+    playfight_team_html:SetVisible(true)
+    playfight_client_selectingteam = true
+    html:SetVisible(false)
+    print("team selection")
+end)
 
 -- Play sound when people get hurt
 net.Receive("playfight_hurtsound", function() 
@@ -370,6 +439,14 @@ end)
 hook.Add("HUDPaint", "_s_d_huD_pAINt___playfi1ghtone___lp___", function()
 
     local ply = LocalPlayer()
+
+    -- Update team counts if team selection screen is open
+    if playfight_team_html:IsVisible() and playfight_client_selectingteam == true then
+        
+        playfight_team_html:QueueJavascript("setTeamPlayerCount(0, "..tostring(#team.GetPlayers(0))..");")
+        playfight_team_html:QueueJavascript("setTeamPlayerCount(1, "..tostring(#team.GetPlayers(1))..");")
+
+    end
 
     -- Current Message
     surface.SetFont("DermaLargeScaled")
@@ -589,9 +666,9 @@ end)
 
 local posX, posY, posZ, minX, minY, minZ, maxX, maxY, maxZ
 
-local isValid
+local isValid = false
 
-local showTrace
+local showTrace = false
 
 net.Receive("playfight_client_showlastpos", function()
 
@@ -614,21 +691,18 @@ end)
 
 -- Retrives information about player ragdolling. This is so we can display the name tag even if the player is ragdolled.
 net.Receive("playfight_client_ragdoll", function()
+    local fell = net.ReadBool()
+    local nickname = net.ReadString()
+    local entIndex = net.ReadInt(18)
 
-    local nick = net.ReadString()
-    local israg = net.ReadBool()
-
-    local ragX = net.ReadFloat()
-    local ragY = net.ReadFloat()
-    local ragZ = net.ReadFloat()
-
-    for k,v in next, player.GetAll() do
-        if v:Nick() == nick then
-            v.israg = israg
-            v.ragX = ragX
-            v.ragY = ragY
-            v.ragZ = ragZ
+    for k, v in next, player.GetAll() do
+        if v:Nick() == nickname then
+            v.israg = fell
         end
+    end
+
+    if Entity(entIndex) ~= nil then
+        Entity(entIndex).nick = nickname;
     end
 end)
 
@@ -642,7 +716,7 @@ hook.Add("PostDrawTranslucentRenderables", "playfight_debug_hull_draw_id", funct
     end
 
     if showTrace then
-        render.DrawWireframeBox( Vector(posX, posY, posZ), Angle( 0, 0, 0 ), Vector(minX, minY, minZ), Vector(maxX, maxY, maxZ), clr, true )
+        //render.DrawWireframeBox( Vector(posX, posY, posZ), Angle( 0, 0, 0 ), Vector(minX, minY, minZ), Vector(maxX, maxY, maxZ), clr, true )
     end
 
     local ang = LocalPlayer():EyeAngles()
@@ -688,16 +762,27 @@ hook.Add("PostDrawTranslucentRenderables", "playfight_debug_hull_draw_id", funct
                 local offset = Vector( 0, 0, drawHeight )
                 local ang = LocalPlayer():EyeAngles()
                 local pos = ply:GetPos() + offset + ang:Up()
-            
+
                 if ply.israg then
-                    pos = Vector(ply.ragX, ply.ragY, ply.ragZ) + offset + ang:Up()
+                    for k, v in next, ents.GetAll() do
+                        if v.nick == ply:Nick() then
+                            pos = v:GetPos() + Vector(0, 0, 40)
+                        end
+                    end
                 end
 
                 ang:RotateAroundAxis( ang:Forward(), 90 )
                 ang:RotateAroundAxis( ang:Right(), 90 )
             
                 cam.Start3D2D( pos, Angle( 0, ang.y, 90 ), 0.25 )
-                    draw.SimpleTextOutlined(ply:GetName().." ("..ply:Health().."%)", "DermaLargeScaled", 2, 2, Color( 255, 255, 255, ply.playfight_client_super_flash ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color( 0, 0, 0, ply.playfight_client_super_flash ))
+                    local nameColor = Color( 0, 0, 0, ply.playfight_client_super_flash );
+                    
+                    if ply:Team() ~= TEAM_UNASSIGNED then
+                        local teamColor = team.GetColor(ply:Team())
+                        nameColor = Color(teamColor.r, teamColor.g, teamColor.b, ply.playfight_client_super_flash)
+                    end
+
+                    draw.SimpleTextOutlined(ply:GetName().." ("..ply:Health().."%)", "DermaLargeScaled", 2, 2, Color( 255, 255, 255, ply.playfight_client_super_flash ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, nameColor)
                 cam.End3D2D()
             end
         end
@@ -894,6 +979,8 @@ net.Receive("playfight_client_player_menu", function( len )
             table.RemoveByValue(playfight_client_menu_list, steamID)
         end
     end
+
+    
 end)
 
 function playSong(filename, time)
@@ -954,3 +1041,7 @@ end)
 hook.Add("PostCleanupMap", "playfight_reset_music_on_cleanup_post", function()
     local station = playSong("sound/grand_march.wav", currentSongTime)
 end)
+
+-- LAG COMPENSATION --
+-- Ok, so first, we'll launch the player clientside at the speed their ragdoll would go when they ragdoll.
+
