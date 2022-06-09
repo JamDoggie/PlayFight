@@ -4,7 +4,7 @@ playfight_client_local_deathcam = false;
 
 playfight_client_deathcam_html = playfight_client_deathcam_html or vgui.Create("DHTML")
 playfight_client_deathcam_html:Dock(FILL)
-playfight_client_deathcam_html:OpenURL("http://quintonswenski.com/Jamdoggie/deathcam/index.html");
+playfight_client_deathcam_html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/deathcam/index.html");
 playfight_client_deathcam_html:SetVisible(false)
 
 net.Receive("playfight_client_deathcam_html", function( len )

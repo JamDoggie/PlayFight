@@ -29,8 +29,7 @@ local ragdollCooldown = 0.3
 
 
 
--- Shamelessly stolen from https://github.com/Foohy/jazztronauts/blob/e5009a193320cf38ec0102acc6f2af2528bffd66/gamemodes/jazztronauts/gamemode/init.lua
--- What can i say, it's a good function
+-- CREDIT: https://github.com/Foohy/jazztronauts/blob/e5009a193320cf38ec0102acc6f2af2528bffd66/gamemodes/jazztronauts/gamemode/init.lua
 local function SetIfDefault(convarstr, ...)
 	local convar = GetConVar(convarstr)
 	if not convar or convar:GetDefault() == convar:GetString() then
@@ -41,7 +40,14 @@ end
 
 function GM:Initialize()
     -- Loading screen
-    SetIfDefault("sv_loadingurl", "http://quintonswenski.com/Jamdoggie/loadingscreen/index.html")
+    SetIfDefault("sv_loadingurl", "http://jd.quintonswenski.com/Jamdoggie/loadingscreen/index.html")
+end
+
+function GM:ShutDown()
+    if GetConVar("sv_loadingurl"):GetString() == "http://jd.quintonswenski.com/Jamdoggie/loadingscreen/index.html" then
+        RunConsoleCommand("sv_loadingurl", "")
+    end -- This only mostly fixes the loading screen issue. If the player's game happens to crash or get force quit, the loading screen
+        -- will still persist forever.
 end
 
 
@@ -55,6 +61,36 @@ function GM:PlayerLoadout( ply )
 
 end
 
+-- Killing ragdolls when they enter kill triggers
+local function SetupMapLua()
+	local MapLua = ents.Create( "lua_run" )
+	MapLua:SetName( "triggerhook" )
+	MapLua:Spawn()
+
+    -- Add an output to the entity so that it calls a hook in lua
+	for _, v in ipairs( ents.FindByClass( "trigger_hurt" ) ) do
+		v:Fire( "AddOutput", "OnStartTouch triggerhook:RunPassedCode:hook.Run( 'OnHurt' ):0:-1" )
+        v:SetKeyValue("spawnflags", 64)
+	end
+end
+
+hook.Add( "InitPostEntity", "playfight_post_entity_killtrigger_detection", SetupMapLua )
+hook.Add( "PostCleanupMap", "playfight_post_entity_killtrigger_detection", SetupMapLua )
+hook.Add( "OnHurt", "playfight_ragdoll_trigger_hurt_hook", function()
+	local activator, caller = ACTIVATOR, CALLER
+	print( activator, caller )
+
+    if activator:GetClass() == "prop_ragdoll" then
+        if activator.ownply ~= nil then
+            -- This is a Play Fight ragdoll, murder the player
+            activator.ownply:Kill()
+            activator.ownply:GetRagdollEntity():Remove()
+            activator.ownply.fell = 0
+            activator.ownply.ragfall = nil
+        end
+    end
+end )
+
 -- Ease of use function that sets the player's super bar to a specified amount. Please use this instead of manually doing it, this
 -- ensures that the super does not go over 100 and it also sends the data to the client so the super bar can update as needed.
 function SetSuper( ply, num ) 
@@ -66,7 +102,6 @@ function SetSuper( ply, num )
     ply.superenergy = number
     
     SetGlobalInt("__playGgfiHti_SUPErCLient_"..ply:Nick(), number)
-
 end
 
 function playfight_increase_kills(ply)
@@ -82,7 +117,7 @@ function playfight_increase_kills(ply)
         net.Start("playfight_send_kills")
 
         
-        if ply:SteamID() ~= nil and ply ~= nil then
+        if ply ~= nil and ply:SteamID() ~= nil then
             net.WriteString(ply:SteamID())
             net.WriteInt(ply.kills, 32)
         else
@@ -150,10 +185,14 @@ function playfight_player_can_hurt(attacker, victim)
         canHurt = false;
     end
 
+    if GetGlobalBool("__ident1fier____Warmup_playfight__") == true and GetConVar("pf_warmup_invulnerability"):GetBool() == true then
+        canHurt = false;
+    end
+
     return canHurt;
 end
 
---=RAGDOLLING AND STUFF=--
+--= RAGDOLLING AND STUFF =--
 hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
     if ( key == IN_ATTACK and ply:GetActiveWeapon() == NULL and !table.HasValue(playfight_server_menu_info, v) and ply.spectating == nil and ply.playtimer ~= nil and !table.HasValue(playfight_players_spectating, v)) and ply.lastavailable ~= nil then
         if !(ply.fell) then
@@ -170,9 +209,8 @@ hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
 
                 ply.healthBefore = ply:Health()
 
-                
-                
-
+                ply.timesRagdolled = ply.timesRagdolled or 0
+                ply.timesRagdolled = ply.timesRagdolled + 1
 
                 -- Create ragdoll then set it's bones and velocities to match the player.
                 local ragdoll = ents.Create("prop_ragdoll")
@@ -204,14 +242,18 @@ hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
                     local hit = data.HitEntity
 
                     if (hit:IsPlayer() and hit:IsValid() and hit:Alive() and !table.HasValue(ragdoll.hitEntities, hit)) or (hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and !table.HasValue(ragdoll.hitEntities, hit)) then
-                        local totalVelocity = ragdoll:GetVelocity().x + ragdoll:GetVelocity().y
+                        --local totalVelocity = ragdoll:GetVelocity().x + ragdoll:GetVelocity().y
+                        local totalVelocity = ragdoll:GetVelocity():Length()
 
                         local damageToTake = math.floor(math.abs(totalVelocity) / 45)
 
+                        
+
                         if damageToTake >= 7 and (playfight_player_can_hurt(ply, hit) or (hit.ownply ~= nil and playfight_player_can_hurt(ply, hit.ownply))) then
+                            
                             if hit:IsPlayer() then
                                 hit:DropWeapon()
-                                hit:TakeDamage(damageToTake, ply, ragdoll)  
+                                hit:TakeDamage(damageToTake, ply, ragdoll)
                             elseif hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit ~= ragdoll && !playfight_is_grace_period and playfight_player_can_hurt(ply, hit.ownply) then
                                 hit.ownply:TakeDamage(damageToTake, ply, ragdoll)
                                 hit.ownply.healthBefore = hit.ownply.healthBefore - damageToTake
@@ -265,8 +307,6 @@ hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
                                         hit.ownply.watchingFreezeCam = false;
                                         hit.ownply:SpectateEntity(nil)
                                     end)
-
-
 
 
                                     playfight_send_killfeed(ply:GetName(), ply:Team(), "prop_ragdoll", hit.ownply:GetName(), hit.ownply:Team())
@@ -395,10 +435,6 @@ hook.Add("KeyPress", "xddDDDdplRessKe___saDF", function( ply, key )
                 if ( SERVER ) then
                     ply:SetHealth(ply.healthBefore)
                 end
-
-                
-
-                
             end
         end
     end
@@ -407,9 +443,6 @@ end)
 
 
 hook.Add("Tick", "xdxddd__plAYer__clickKKPlay_dEdeaHooK", function() 
-
-    
-
     -- Strip weapons from player if they have an empty or invalid weapon, and set their ammo capacity for specific guns(1 bullet for 357, 2 for shotgun)
     for k, v in next, player.GetAll() do
 
@@ -515,7 +548,7 @@ function ForceRagdollPlayer(ply)
             local hit = data.HitEntity
 
             if (hit:IsPlayer() and hit:IsValid() and hit:Alive() and !table.HasValue(ragdoll.hitEntities, hit)) or (hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and hit.ownply:Alive() and !table.HasValue(ragdoll.hitEntities, hit)) then
-                local totalVelocity = ragdoll:GetVelocity().x + ragdoll:GetVelocity().y
+                local totalVelocity = ragdoll:GetVelocity():Length()
 
                 local damageToTake = math.floor(math.abs(totalVelocity) / 45)
 
@@ -688,7 +721,7 @@ function GM:KeyRelease(ply, key)
 
         ply.cansuper = ply.superenergy 
 
-        --use super mechanics here
+        -- Use super mechanics here
         if ply.useenergy ~= nil and ply.useenergy ~= 0 then
             if!(ply.fell) then
                 ply.fell = 0
@@ -698,6 +731,9 @@ function GM:KeyRelease(ply, key)
                 ply:SetMaxSpeed(115000)
 
                 if ply:GetActiveWeapon() ~= NULL then ply:DropWeapon(ply:GetActiveWeapon()) end
+
+                ply.timesSupered = ply.timesSupered or 0
+                ply.timesSupered = ply.timesSupered + 1
 
                 ply.fell = 1
                 
@@ -732,7 +768,7 @@ function GM:KeyRelease(ply, key)
                     local hit = data.HitEntity
 
                     if (hit:IsPlayer() and hit:IsValid() and hit:Alive() and !table.HasValue(ragdoll.hitEntities, hit)) or (hit:GetClass() == "prop_ragdoll" and hit.ownply ~= nil and !table.HasValue(ragdoll.hitEntities, hit)) then
-                        local totalVelocity = ragdoll:GetVelocity().x + ragdoll:GetVelocity().y
+                        local totalVelocity = ragdoll:GetVelocity():Length()
 
                         local damageToTake = math.floor(math.abs(totalVelocity) / 45)
 
@@ -884,6 +920,7 @@ hook.Add( "PlayerCanPickupWeapon", "xdDXdX____sDOuble_pickTEsCHECK___", function
     end
 end )
 
+
 hook.Add("PlayerInitialSpawn", "xddd___Xd_playerspawn_setragfall_nil_playf_gight_addon", function( ply )
     ply.ragfall = nil
 
@@ -910,7 +947,7 @@ hook.Add("PlayerInitialSpawn", "xddd___Xd_playerspawn_setragfall_nil_playf_gight
     SetSuper(ply, 0);
 end)
 
-hook.Add("PlayerSpawn", "xddd_I_N_I_T_I_A_L_Xd_playerspawn_setragfall_nil_playf_gight_addon", function( ply )
+hook.Add("PlayerSpawn", "I_N_I_T_I_A_L_playerspawn_setragfall_nil_playf_gight_addon", function( ply )
     ply:SetMaxSpeed(1150)
 
     ply.watchingFreezeCam = false;
@@ -971,6 +1008,39 @@ hook.Add("PlayerSpawn", "xddd_I_N_I_T_I_A_L_Xd_playerspawn_setragfall_nil_playf_
     end
 end)
 
+-- Collect round stats for win screen
+hook.Add( "PlayerDeath", "playfight_round_death_stats_hook", function( victim, inflictor, attacker )
+    if attacker ~= nil then
+        if attacker:IsPlayer() then
+            if attacker ~= victim then
+                if attacker.roundKills == nil then
+                    attacker.roundKills = 0
+                end
+                
+                attacker.roundKills = attacker.roundKills + 1;
+            end
+        end
+    end
+end)
+
+hook.Add( "PlayerHurt", "playfight_round_hurt_stats_hook", function( victim, attacker, healthRemaining, dmgTaken )
+    if attacker ~= nil then
+        if attacker:IsPlayer() then
+            if attacker ~= victim then
+                if attacker.roundDmg == nil then
+                    attacker.roundDmg = 0
+                end
+                
+                attacker.roundDmg = attacker.roundDmg + dmgTaken;
+            end
+        end
+    end
+end)
+
+hook.Add("WeaponEquip", "playfight_stats_equip_weapon", function(weapon, player)
+    player.weaponsPickedUp = player.weaponsPickedUp or 0
+    player.weaponsPickedUp = player.weaponsPickedUp + 1
+end)
 
 
 -- Respawning
@@ -1042,12 +1112,7 @@ hook.Add("PlayerDeathThink", "__PLayF1Ght_playDeADTTHthINK__", function( ply )
                         ply.spectatedPlayer = playerToSpectate
                     end
                 end
-
-                
-
             end
-
-            
         end
 
         if ply.spectatedPlayer ~= nil and !ply.spectatedPlayer:IsValid() then
@@ -1217,18 +1282,26 @@ hook.Add("PlayerDeathThink", "__PLayF1Ght_playDeADTTHthINK__", function( ply )
     end
 end)
 
-local playfight_mapcount = 1
-
 -- Map Selection
 local AllMaps = file.Find( "maps/*.bsp", "GAME" )
 for key, map in pairs( AllMaps ) do
 	AllMaps[ key ] = string.gsub( map, ".bsp", "" )
-    if string.sub(AllMaps[key], 0, 3) == "pf_" || AllMaps[key] == "gm_trajectory" then
-        playfight_mapsinstalled[playfight_mapcount] = AllMaps[key]
-        playfight_mapvotes[playfight_mapcount] = 0
-        playfight_mapcount = playfight_mapcount + 1
+
+    if string.sub(AllMaps[key], 0, 3) == "pf_" or AllMaps[key] == "gm_trajectory" then
+        table.insert(playfight_mapsinstalled, AllMaps[key])
+        table.insert(playfight_mapvotes, 0)
     end
 end
+
+for key, map in pairs( AllMaps ) do
+	AllMaps[ key ] = string.gsub( map, ".bsp", "" )
+
+    if GetConVar("pf_show_all_maps"):GetBool() == true and string.sub(AllMaps[key], 0, 3) ~= "pf_" and AllMaps[key] ~= "gm_trajectory" then
+        table.insert(playfight_mapsinstalled, AllMaps[key])
+        table.insert(playfight_mapvotes, 0)
+    end
+end
+
 
 -- Helper function to return the highest number in a table. I believe this was used for map selection (Citation Needed)
 function max(a)
@@ -1575,5 +1648,17 @@ hook.Add("PlayerDisconnected", "___playfight_player_disconnect___", function(ply
     -- Remove player from spectator table so if they join back it won't mess things up.
     if table.HasValue(playfight_players_spectating, ply) then
         table.RemoveByValue(playfight_players_spectating, ply)
+    end
+end)
+
+-- If an admin says "you're british" in chat, and peake is in the game, kill him.
+hook.Add("PlayerSay", "playfight_kill_peake", function(sender, text, teamChat)
+    if sender:IsAdmin() and text == "you're british" then
+        print("Killing Peake")
+        for k, v in next, player.GetAll() do
+            if v:SteamID64() == "76561198168787219" then
+                v:Kill()
+            end
+        end
     end
 end)

@@ -111,6 +111,7 @@ surface.CreateFont( "ScoreboardStatsPlayfight", {
 	outline = false
 } )
 
+-- Main menu
 local html = html or vgui.Create( "DHTML" )
 html:Dock( FILL )
 
@@ -126,7 +127,7 @@ html:AddFunction("playfight", "playgame", function()
     playfight_playerframe:SetVisible(false)
     playfight_playerchoose:SetVisible(false)
     html:SetVisible(false)
-    html:OpenURL("http://quintonswenski.com/Jamdoggie/settingsmenu/index.html")
+    html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/settingsmenu/index.html")
 end)
 
 html:AddFunction("playfight", "spectategame", function()
@@ -140,7 +141,7 @@ html:AddFunction("playfight", "spectategame", function()
     playfight_playerframe:SetVisible(false)
     playfight_playerchoose:SetVisible(false)
     html:SetVisible(false)
-    html:OpenURL("http://quintonswenski.com/Jamdoggie/settingsmenu/index.html")
+    html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/settingsmenu/index.html")
 end)
 
 html:AddFunction("playfight", "setmusicmuted", function(muted)
@@ -176,13 +177,21 @@ html:AddFunction("playfight", "setmusicvolume", function(volume)
 end)
 
 
-html:OpenURL("http://quintonswenski.com/Jamdoggie/vote_wait_screen/index.html")
+html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/vote_wait_screen/index.html")
 
+-- Win screen
+playfight_win_screen = playfight_win_screen or vgui.Create( "DHTML" )
+playfight_win_screen:Dock( FILL )
 
+playfight_win_screen:OpenURL("http://jd.quintonswenski.com/Jamdoggie/roundwinscreen/index.html")
+
+playfight_win_screen:SetVisible(false);
+
+-- Team selection screen
 playfight_team_html = playfight_team_html or vgui.Create( "DHTML" )
 playfight_team_html:Dock( FILL )
 
-playfight_team_html:OpenURL("http://quintonswenski.com/Jamdoggie/team_select/index.html");
+playfight_team_html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/team_select/index.html");
 
 playfight_team_html:AddFunction("playfight", "selectTeam", function(teamId)
     if type(teamId) == "number" then
@@ -345,7 +354,7 @@ net.Receive("playfight_enter_menu", function()
     mdl:SetVisible(true);
     playfight_playerchoose:SetVisible(true);
     playfight_client_selectingteam = false
-    html:OpenURL("http://quintonswenski.com/Jamdoggie/index.html");
+    html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/index.html");
     playfight_team_html:SetVisible(false)
     playfight_team_html:MoveToFront()
     playfight_playerframe:MoveToFront()
@@ -360,15 +369,15 @@ net.Receive("playfight_gamemode_vote", function()
 
     if adminVoting then
         if isVoting then
-            html:OpenURL("http://quintonswenski.com/Jamdoggie/server_config/index.html");
+            html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/server_config/index.html");
         else
-            html:OpenURL("http://quintonswenski.com/Jamdoggie/vote_wait_screen/index.html");
+            html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/vote_wait_screen/index.html");
         end
     else
         if isVoting then
-            html:OpenURL("http://quintonswenski.com/Jamdoggie/server_config_player/index.html");
+            html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/server_config_player/index.html");
         else
-            html:OpenURL("http://quintonswenski.com/Jamdoggie/vote_wait_screen/index.html");
+            html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/vote_wait_screen/index.html");
         end
     end
 
@@ -797,20 +806,34 @@ end)
 
 net.Receive("playfight_round_winner", function()
         
-    local winNicknameplayfight = net.ReadString()
+    local winNicknameplayfight = net.ReadString() -- Player name or generic round message
+    local steamID = net.ReadString() -- SteamID of the player who won
+    local endType = net.ReadInt(32) -- 0 = player won, 1 = team won, 2 = generic (draw, game end, etc.)
+    local playerRoundKills = net.ReadInt(32)
+    local playerRoundDamage = net.ReadInt(32)
+    local playerRoundHealth = net.ReadInt(32)
+    local teamIndex = net.ReadInt(32)
+    local mvp = net.ReadString()
+    local funfact = net.ReadString()
 
+    -- Figure out whether we should show the screen or hide it. We hide the screen if the packet has an empty string as the win nickname.
     if !(winNicknameplayfight == "") then
-        winStr = winNicknameplayfight.." is the winner!"
+        playfight_win_screen:SetVisible(true)
+
+        if endType == 0 then
+            local playerAvatar = playfight_get_cached_avatar(steamID, util.SteamIDTo64(steamID), function(avatar)
+                playfight_win_screen:QueueJavascript("document.getElementById('player_avatar').src = '"..avatar.."'")
+            end)
+            playfight_win_screen:QueueJavascript("showScreenPlayer('"..winNicknameplayfight.."', '"..playerAvatar.."', "..playerRoundDamage..", "..playerRoundKills..", "..playerRoundHealth..")")
+        elseif endType == 1 then
+            local teamName = team.GetName(teamIndex)
+            playfight_win_screen:QueueJavascript("showScreenTeam('"..teamName.."', '"..mvp.."', '"..funfact.."', "..teamIndex..")")
+        elseif endType == 2 then
+            playfight_win_screen:QueueJavascript("showScreenGeneric('"..winNicknameplayfight.."')")
+        end
     else
-        winStr = ""
-    end
-
-    if winNicknameplayfight == "pf_reserved_draw" then
-        winStr = "Draw!"
-    end
-
-    if winNicknameplayfight == "pf_reserved_suddendeath" then
-        winStr = "SUDDEN DEATH"
+        playfight_win_screen:SetVisible(false)
+        playfight_win_screen:QueueJavascript("hideScreen()")
     end
 
     if string.find(winNicknameplayfight, "Game end,") then
@@ -1044,4 +1067,3 @@ end)
 
 -- LAG COMPENSATION --
 -- Ok, so first, we'll launch the player clientside at the speed their ragdoll would go when they ragdoll.
-

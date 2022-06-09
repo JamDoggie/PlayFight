@@ -83,6 +83,26 @@
 			"type"		"CheckBox"
 			"default"	"0"
 		}
+
+		9
+		{
+			
+			"name"		"pf_warmup_invulnerability"
+			"text"		"Players Invulnerable During Warmup"
+			"help"		""
+			"type"		"CheckBox"
+			"default"	"1"
+		}
+
+		10
+		{
+			
+			"name"		"pf_show_all_maps"
+			"text"		"Show All Maps When Voting"
+			"help"		"Whether or not to show non Play Fight maps when voting for a map"
+			"type"		"CheckBox"
+			"default"	"0"
+		}
 	}
 
 }

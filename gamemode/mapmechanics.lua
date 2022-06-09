@@ -1,5 +1,3 @@
-
-
 -- This is called right after the game has processed all the map entities. This is responsible for using the weapon_spawn to remove them from the world and take note
 -- of their positions for weapon spawning.
 -- For info on mapping for this gamemode, check here: (insert youtube link when i make the guide video here)
@@ -20,9 +18,9 @@ playfight_kills_list = playfight_kills_list or {}
 playfight_weapons_table = {
     weapon_shotgun = 5,
     weapon_357 = 5,
-    throwable_crowbar = 3,
+    throwable_crowbar = 5,
     hitscan_crossbow = 5,
-    ricochet_disk = 4
+    ricochet_disk = 5
 }
 
 -- If the grace period is currently active
@@ -67,18 +65,37 @@ function GM:InitPostEntity()
 
     end
 
--- Clears spectator list for all players who hit didn't hit spectate on the main menu and sends a packet to the clients about their spectate status.
-function playfight_clearspectators()
-    for k, v in next, player.GetAll() do
-        if table.HasValue(playfight_players_spectating, v) and v.spectatingGame ~= true then
-            table.RemoveByValue(playfight_players_spectating, v)
-
-            net.Start("playfight_client_spectate_info")
-            net.WriteBool(false)
-            net.Send(v);
+    -- If this map has no weapon spawns, use the player start positions.
+    if #wepsTable == 0 then
+        print("No weapon spawns found, using player start positions. This map may not be fully supported, but should work.")
+        for k, v in next, ents.GetAll() do
+            if v:GetClass() == "info_player_start" then
+                table.insert(wepsTable, v:GetPos())
+            end
         end
     end
-end
+
+    if #wepsTable == 0 then
+        print("No weapon spawns found, using CS spawn entities. This map may not be fully supported, but should work.")
+        for k, v in next, ents.GetAll() do
+            if v:GetClass() == "info_player_terrorist" or v:GetClass() == "info_player_counterterrorist" then
+                table.insert(wepsTable, v:GetPos())
+            end
+        end
+    end
+
+    -- Clears spectator list for all players who hit didn't hit spectate on the main menu and sends a packet to the clients about their spectate status.
+    function playfight_clearspectators()
+        for k, v in next, player.GetAll() do
+            if table.HasValue(playfight_players_spectating, v) and v.spectatingGame ~= true then
+                table.RemoveByValue(playfight_players_spectating, v)
+
+                net.Start("playfight_client_spectate_info")
+                net.WriteBool(false)
+                net.Send(v);
+            end
+        end
+    end
 
 
 -- This codebase dates back to about january 2018 and I'm not sure why I decided to do it this way.
@@ -229,7 +246,6 @@ if ( globalTable ~= nil ) then
             end
 
             if ( shouldCountDown and GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) >= 0) then
-            //if (GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) >= 0) then
                 SetGlobalInt("__ident1fier____Warmup_time_playfight__", GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) - 1)
                 if (GetGlobalInt("__ident1fier____Warmup_time_playfight__", 30) <= 0) then
                     
@@ -346,8 +362,6 @@ if ( globalTable ~= nil ) then
     timer.Create("__ident1fier____RoUnd_playfight____timerrr___", 1, 0, function()
         local alivePly = {}
 
-
-
         for k,v in next, player.GetAll() do
             if v:Alive() then
                 table.insert(alivePly, v:Nick())
@@ -367,7 +381,15 @@ if ( globalTable ~= nil ) then
                 -- If sudden death is enabled, do it
                 if GetConVar("pf_suddendeath"):GetBool() then
                     net.Start("playfight_round_winner")
-                    net.WriteString("pf_reserved_suddendeath")
+                    net.WriteString("Sudden Death!")
+                    net.WriteString("") -- Dummy data
+                    net.WriteInt(2, 32)
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteString("") -- Dummy data
+                    net.WriteString("") -- Dummy data
 
                     net.Broadcast()
 
@@ -376,12 +398,21 @@ if ( globalTable ~= nil ) then
                     
                 else
                     net.Start("playfight_round_winner")
-                    net.WriteString("pf_reserved_draw")
+                    net.WriteString("Draw!")
+                    net.WriteString("") -- Dummy data
+                    net.WriteInt(2, 32)
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteString("") -- Dummy data
+                    net.WriteString("") -- Dummy data
                     net.Broadcast()
                 end
             end
 
             for k,v in next, player.GetAll() do
+                playfight_player_reset_round_stats(v)
                 v:Freeze(true)
             end
 
@@ -410,7 +441,15 @@ if ( globalTable ~= nil ) then
                 -- Clean up map
 
                 net.Start("playfight_round_winner")
-                net.WriteString("")
+                net.WriteString("") -- Empty data so the client hides the round end screen
+                net.WriteString("") -- Dummy data
+                net.WriteInt(0, 32) -- Dummy data
+                net.WriteInt(0, 32) -- Dummy data
+                net.WriteInt(0, 32) -- Dummy data
+                net.WriteInt(0, 32) -- Dummy data
+                net.WriteInt(0, 32) -- Dummy data
+                net.WriteString("") -- Dummy data
+                net.WriteString("") -- Dummy data
                 net.Broadcast()
 
                 game.CleanUpMap()
@@ -483,7 +522,7 @@ if ( globalTable ~= nil ) then
 
 end
 
-    -- We here at [redacted]™ take pride in our excellent documentation and readability for variable names.
+    -- We here at [redacted]™ take pride in our excellent documentation and code readability.
     hook.Add("PlayerSpawn", "__p__la_yerI__niti__Spa__NW__Ns____nns___", function( ply )
         net.Start("playfight_client_team_win_update")
         net.WriteInt(0, 18) -- Team ID
@@ -533,61 +572,151 @@ end
     end)
 end
 
+playfight_round_should_end = false
+playfight_round_end_ply = nil
+playfight_round_end_inflictor = nil
+playfight_round_end_attacker = nil
 
-
--- If there's only one player/team alive, that player/team wins.
-hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inflictor, attacker )
-
-
-    if GetGlobalBool("__ident1fier____Warmup_playfight__") == false then
+hook.Add("Tick", "playfight_roundend_tick_timer", function()
+    if playfight_round_should_end then
         
-        
-
-        local alivePly = {}
-
-        for k,v in next, player.GetAll() do
-            if v:Alive() then
-                table.insert(alivePly, v:Nick())
-            end
-            if v.toModel ~= nil then
-                v:SetModel(v.toModel)
-            end
-        end
-
-        local aliveTeams = 0
-        local winnerTeam = -1;
-
-        for k, v in next, team.GetPlayers(0) do
-            if v:Alive() then
-                aliveTeams = aliveTeams + 1
-                winnerTeam = 0
-                break
-            end
-        end
-
-        for k, v in next, team.GetPlayers(1) do
-            if v:Alive() then
-                aliveTeams = aliveTeams + 1
-                winnerTeam = 1
-                break
-            end
-        end
-
-        if (playfight_current_gamemode == 0 and #alivePly == 1) or (playfight_current_gamemode == 1 and aliveTeams == 1) then
-            net.Start("playfight_round_winner")
-            if playfight_current_gamemode == 0 then
-                net.WriteString(alivePly[1])
-            elseif playfight_current_gamemode == 1 then
-                net.WriteString(team.GetName(winnerTeam))
-            end
-
-            -- Increment team score
-            if playfight_current_gamemode == 1 then
-                team.AddScore(winnerTeam, 1)
-            end
-
-            net.Broadcast()
+        if GetGlobalBool("__ident1fier____Warmup_playfight__") == false then
+            local alivePly = {}
+    
             for k,v in next, player.GetAll() do
+                if v:Alive() then
+                    table.insert(alivePly, v:Nick())
+                end
+                if v.toModel ~= nil then
+                    v:SetModel(v.toModel)
+                end
+            end
+    
+            local alivePlayerEntities = {}
+    
+            for k,v in next, player.GetAll() do
+                if v:Alive() then
+                    table.insert(alivePlayerEntities, v)
+                end
+            end
+    
+            local aliveTeams = 0
+            local winnerTeam = -1;
+    
+            for k, v in next, team.GetPlayers(0) do
+                if v:Alive() then
+                    aliveTeams = aliveTeams + 1
+                    winnerTeam = 0
+                    break
+                end
+            end
+    
+            for k, v in next, team.GetPlayers(1) do
+                if v:Alive() then
+                    aliveTeams = aliveTeams + 1
+                    winnerTeam = 1
+                    break
+                end
+            end
+    
+            local doSuddenDeath = false
+
+            -- If all players died, draw
+            if (playfight_current_gamemode == 0 and #alivePly == 0) or (playfight_current_gamemode == 1 and aliveTeams == 0) then
+                -- If sudden death is enabled, do it
+                if GetConVar("pf_suddendeath"):GetBool() then
+                    net.Start("playfight_round_winner")
+                    net.WriteString("Sudden Death!")
+                    net.WriteString("") -- Dummy data
+                    net.WriteInt(2, 32)
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteString("") -- Dummy data
+                    net.WriteString("") -- Dummy data
+
+                    net.Broadcast()
+
+                    playfight_isSuddenDeath = true
+                    doSuddenDeath = true
+                    
+                else
+                    net.Start("playfight_round_winner")
+                    net.WriteString("Draw!")
+                    net.WriteString("") -- Dummy data
+                    net.WriteInt(2, 32)
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteString("") -- Dummy data
+                    net.WriteString("") -- Dummy data
+                    net.Broadcast()
+                end
+            end
+
+            -- If only one player/team is alive, they win
+            if (playfight_current_gamemode == 0 and #alivePly == 1) or (playfight_current_gamemode == 1 and aliveTeams == 1) then
+                if playfight_current_gamemode == 0 then
+                    net.Start("playfight_round_winner")
+    
+                    local playerName = "";
+                    local playerSteamID = "";
+    
+                    if #alivePlayerEntities > 0 and alivePlayerEntities[1] ~= nil and alivePlayerEntities[1]:IsValid() then
+                        playerName = alivePlayerEntities[1]:Nick()
+                        playerSteamID = alivePlayerEntities[1]:SteamID()
+                    end
+    
+                    local plyWhoWon = alivePlayerEntities[1]
+    
+                    if plyWhoWon.roundKills == nil then
+                        plyWhoWon.roundKills = 0
+                    end
+    
+                    if plyWhoWon.roundDmg == nil then
+                        plyWhoWon.roundDmg = 0
+                    end
+    
+                    net.WriteString(playerName)
+                    net.WriteString(playerSteamID) -- Player SteamID, dummy data
+                    net.WriteInt(0, 32) -- Tell the client to show the player winner screen
+                    net.WriteInt(math.floor(plyWhoWon.roundKills), 32) -- Dummy data
+                    net.WriteInt(math.floor(plyWhoWon.roundDmg), 32) -- Dummy data
+                    net.WriteInt(math.floor(plyWhoWon:Health()), 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteString("") -- Dummy data
+                    net.WriteString(playfight_get_round_funfact())
+    
+                    net.Broadcast()
+                elseif playfight_current_gamemode == 1 then
+                    net.Start("playfight_round_winner")
+                    net.WriteString(team.GetName(winnerTeam))
+                    net.WriteString("") -- Player SteamID, dummy data
+                    net.WriteInt(1, 32) -- Tell the client to show the team winner screen
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(winnerTeam, 32) -- Team ID
+                    local mvpName = "nil"
+                    if playfight_team_get_mvp(winnerTeam) ~= nil and playfight_team_get_mvp(winnerTeam):IsValid() and playfight_team_get_mvp(winnerTeam):IsPlayer() then
+                        mvpName = playfight_team_get_mvp(winnerTeam):Nick()
+                    end
+                    net.WriteString(mvpName)
+                    net.WriteString(playfight_get_round_funfact())
+    
+                    net.Broadcast()
+                end
+    
+                -- Increment team score
+                if playfight_current_gamemode == 1 then
+                    team.AddScore(winnerTeam, 1)
+                end
+            end
+
+            for k,v in next, player.GetAll() do
+                playfight_player_reset_round_stats(v)
                 v:Freeze(true)
 
                 if v:Alive() then
@@ -620,13 +749,22 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                 end
                 
                 if canStartNewRound == 0 then
-                    playfight_isSuddenDeath = false
+
+                    if !doSuddenDeath then
+                        playfight_isSuddenDeath = false
+                    end
 
                     -- Clean up map
-                    
-
                     net.Start("playfight_round_winner")
-                    net.WriteString("")
+                    net.WriteString("") -- Empty data so the client hides the round end screen
+                    net.WriteString("") -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteInt(0, 32) -- Dummy data
+                    net.WriteString("") -- Dummy data
+                    net.WriteString("") -- Dummy data
                     net.Broadcast()
 
                     print("Map cleaned")
@@ -673,11 +811,15 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                                     end
                                 end
                             end
+
+                            if playfight_isSuddenDeath then
+                                v:SetHealth(1)
+                            end
                         end
                     end
 
                     for k,v in next, ents.GetAll() do
-                        if v:GetClass() == "info_target" or v:GetClass() == "info_player_start" then
+                        if v:GetClass() == "info_target" then
                             v:Remove()
                         end
                     end
@@ -699,7 +841,20 @@ hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inf
                 end
             end)
         end
+
+        playfight_round_should_end = false
+        round_end_ply = nil
+        round_end_inflictor = nil
+        round_end_attacker = nil
     end
+end)
+
+-- If there's only one player/team alive, that player/team wins.
+hook.Add("PostPlayerDeath", "__PlayFight_ma1n_l00psbrother_", function( ply, inflictor, attacker )
+    playfight_round_should_end = true
+    round_end_ply = ply
+    round_end_inflictor = inflictor
+    round_end_attacker = attacker
 end)
 
 local function switchmaps()
@@ -717,6 +872,144 @@ local function switchmaps()
     print("map to change: " .. mapToChange)
 
     RunConsoleCommand( "changelevel", winningMaps[mapToChange] )
+end
+
+function playfight_team_get_mvp(teamIndex)
+    local mvp = nil
+    local highestMvpScore = 0;
+    for k, v in next, player.GetAll() do
+        if v:Team() == teamIndex then
+            if v.roundDmg == nil then
+                v.roundDmg = 0
+            end
+
+            if v.roundKills == nil then
+                v.roundKills = 0
+            end
+
+            local mvpScore = v.roundDmg + v.roundKills
+
+            if mvp == nil then
+                mvp = v
+            else
+                if mvpScore > highestMvpScore then
+                    mvp = v
+                end
+            end
+        end
+    end
+
+    return mvp
+end
+
+function playfight_player_reset_round_stats(player)
+    player.roundDmg = 0;
+    player.roundKills = 0;
+    player.timesRagdolled = 0;
+    player.timesSupered = 0;
+    player.weaponsPickedUp = 0;
+    player.dmgUsingDisk = 0;
+end
+
+function playfight_get_round_funfact()
+    possibleFacts = {}
+
+    -- Most ragdolls
+    local playerMostRagdolls = nil
+    for k, v in next, player.GetAll() do 
+        v.timesRagdolled = v.timesRagdolled or 0
+        if playerMostRagdolls == nil then
+            playerMostRagdolls = v
+        else
+            if v.timesRagdolled > playerMostRagdolls.timesRagdolled then
+                playerMostRagdolls = v
+            end
+        end
+    end
+
+    table.insert(possibleFacts, playerMostRagdolls:Nick().." ragdolled "..playerMostRagdolls.timesRagdolled.." times.")
+
+    -- Player got an ace
+    if playfight_current_gamemode == 0 then
+        for k, v in next, player.GetAll() do
+            v.roundKills = v.roundKills or 0
+            if v.roundKills >= player.GetCount() - 1 then
+                table.insert(possibleFacts, v:Nick() .. " killed 100% of the players that round.")
+            end
+        end
+    end
+
+    if playfight_current_gamemode == 1 then
+        for k, v in next, player.GetAll() do
+            v.roundKills = v.roundKills or 0
+            if v:Team() ~= nil and v.roundKills >= player.GetCount() - #team.GetPlayers(v:Team()) then
+                table.insert(possibleFacts, v:Nick() .. " killed 100% of the players that round.")
+            end
+        end
+    end
+
+    -- Most weapons
+    local playerMostWeapons = nil
+    for k, v in next, player.GetAll() do 
+        v.weaponsPickedUp = v.weaponsPickedUp or 0
+        if playerMostWeapons == nil then
+            playerMostWeapons = v
+        else
+            if v.weaponsPickedUp > playerMostWeapons.weaponsPickedUp then
+                playerMostWeapons = v
+            end
+        end
+    end
+
+    table.insert(possibleFacts, playerMostWeapons:Nick().." picked up "..playerMostWeapons.weaponsPickedUp.." weapon(s) that round.")
+
+    -- Most damage
+    local playerMostDmg = nil
+    for k, v in next, player.GetAll() do 
+        v.roundDmg = v.roundDmg or 0
+        if playerMostDmg == nil then
+            playerMostDmg = v
+        else
+            if v.roundDmg > playerMostDmg.roundDmg then
+                playerMostDmg = v
+            end
+        end
+    end
+
+    table.insert(possibleFacts, playerMostDmg:Nick().." did "..playerMostDmg.roundDmg.." damage that round.")
+
+    -- Most supers
+    local playerMostSupers = nil
+    for k, v in next, player.GetAll() do 
+        v.timesSupered = v.timesSupered or 0
+        if playerMostSupers == nil then
+            playerMostSupers = v
+        else
+            if v.timesSupered > playerMostSupers.timesSupered then
+                playerMostSupers = v
+            end
+        end
+    end
+
+    table.insert(possibleFacts, playerMostSupers:Nick().." used their super "..playerMostSupers.timesSupered.." times that round.")
+
+    -- Most ricochet disk damage
+    local playerMostDiskDmg = nil
+    for k, v in next, player.GetAll() do 
+        v.dmgUsingDisk = v.dmgUsingDisk or 0
+        if playerMostDiskDmg == nil then
+            playerMostDiskDmg = v
+        else
+            if v.dmgUsingDisk > playerMostDiskDmg.dmgUsingDisk then
+                playerMostDiskDmg = v
+            end
+        end
+    end
+
+    if playerMostDiskDmg.dmgUsingDisk > 0 then
+        table.insert(possibleFacts, playerMostDiskDmg:Nick().." did "..playerMostDiskDmg.dmgUsingDisk.." damage with ricochet disks that round.")
+    end
+    return possibleFacts[math.random(1, #possibleFacts)]
 end
 
 function playfight_end_game()
@@ -762,7 +1055,19 @@ function playfight_end_game()
 
 
     net.Start("playfight_round_winner")
-    net.WriteString("Game end, " .. team.GetName(winningTeam))
+    if playfight_current_gamemode == 1 then
+        net.WriteString("Game end, " .. team.GetName(winningTeam) .. " won!")
+    else
+        net.WriteString("Game end, " .. playerName .. " won!")
+    end
+    net.WriteString("") -- Dummy data
+    net.WriteInt(2, 32) -- Dummy data
+    net.WriteInt(0, 32) -- Dummy data
+    net.WriteInt(0, 32) -- Dummy data
+    net.WriteInt(0, 32) -- Dummy data
+    net.WriteInt(0, 32) -- Dummy data
+    net.WriteString("") -- Dummy data
+    net.WriteString("") -- Dummy data
     net.Broadcast()
 
     SetGlobalInt("__ident1fier____Warmup_time_playfight__", 30)
@@ -781,4 +1086,3 @@ function playfight_end_game()
 
     playfight_game_ended = true
 end
-

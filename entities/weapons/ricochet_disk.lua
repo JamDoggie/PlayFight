@@ -67,7 +67,7 @@ function SWEP:Equip(newOwner)
     net.Send(self:GetOwner())
 end
 
---throw the crowbar
+-- Throw the crowbar
 function SWEP:PrimaryAttack()
     ply = self:GetOwner()
 
@@ -139,6 +139,9 @@ function SWEP:PrimaryAttack()
                             local plyr = data.HitEntity
 
                             plyr:TakeDamage(diskDamage, disk.owner, disk)
+
+                            plyr.dmgUsingDisk = plyr.dmgUsingDisk or 0
+                            plyr.dmgUsingDisk = plyr.dmgUsingDisk + diskDamage
 
                             timer.Remove("playfight_ricochet_disk_dissapear_timer"..#playfight_ricochet_disks)
                             disk:Remove()

@@ -21,7 +21,7 @@ playfight_scoreboard_visible = false
 
 playfight_scoreboard_html = playfight_scoreboard_html or vgui.Create("DHTML")
 playfight_scoreboard_html:Dock( FILL )
-playfight_scoreboard_html:OpenURL("http://quintonswenski.com/Jamdoggie/tab_menu/index.html");
+playfight_scoreboard_html:OpenURL("http://jd.quintonswenski.com/Jamdoggie/tab_menu/index.html");
 playfight_scoreboard_html:SetVisible(false)
 
 playfight_scoreboard_html:AddFunction("playfight", "opensteamprofile", function(steamid)
